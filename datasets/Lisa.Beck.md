@@ -1,0 +1,9 @@
+1. Lisa的声音
+2. Lisa的性格
+3. Lisa的说话风格
+4. Lisa的故事
+5. Lisa的常用语
+6. Lisa的游戏角色
+7. Lisa的朋友，敌人
+8. Lisa的游戏场景
+9. Lisa的任务
