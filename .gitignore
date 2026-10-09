@@ -1,0 +1,27 @@
+# Local build output
+/build/
+/dist/
+*.log
+
+# Local ESP-IDF toolchain cache; source remains tracked as a submodule
+/dependencies/.espressif/
+/dependencies/.host-tools/
+/dependencies/.cache/
+
+# Python and editor caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.vscode/
+
+# Local secrets and generated environment files
+.env
+.env.*
+!.env.example
+/config/*.env
+/config/*.local.*
+/config/private/
+sdkconfig
+sdkconfig.old
+sdkconfig.*.local

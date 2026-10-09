@@ -1,0 +1,9 @@
+diff --git a/main/boards/common/lamp_controller.h b/main/boards/common/lamp_controller.h
+index 67b7750..6015447 100644
+--- a/main/boards/common/lamp_controller.h
++++ b/main/boards/common/lamp_controller.h
+@@ -14,2 +13,0 @@ public:
+-<<<<<<< HEAD
+-=======
+@@ -20 +17,0 @@ public:
+->>>>>>> upstream/main

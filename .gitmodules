@@ -1,0 +1,6 @@
+[submodule "dependencies/xiaoclaw"]
+	path = dependencies/xiaoclaw
+	url = https://github.com/beancookie/xiaoclaw.git
+[submodule "dependencies/esp-idf"]
+	path = dependencies/esp-idf
+	url = https://github.com/espressif/esp-idf.git
