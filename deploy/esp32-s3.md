@@ -2,14 +2,14 @@
 
 ## 当前状态
 
-当前主机无可连接的 ESP32-S3。已验证的固件只是 XiaoClaw 软件基线：默认 `BREAD_COMPACT_WIFI` 板型、32 MB Flash 分区。ESP32-S3R8 只确认芯片及 8 MB PSRAM，不代表板载 Flash 容量或音频/屏幕引脚已确定。
+当前主机无可连接的 ESP32-S3。已验证的固件只是 xiaozhi-esp32 软件基线：默认 `bread-compact-wifi` 板型、16 MB Flash 分区。ESP32-S3R8 只确认芯片及 8 MB PSRAM，不代表板载 Flash 容量或音频/屏幕引脚已确定。
 
 **不得将当前基线镜像直接烧录到实际板卡。** 烧录前必须确认下列信息并生成匹配板卡的配置：
 
 - 完整板卡/模组型号、Flash 容量和模式、PSRAM 类型/容量
 - 麦克风、扬声器、音频 codec/功放及 I2S/I2C GPIO
 - 屏幕型号、分辨率、接口及 GPIO
-- XiaoClaw 支持的 board type；若无匹配板型，需先新增独立 board 配置
+- xiaozhi-esp32 支持的 board/变体；若无匹配板型，需先按上游 `docs/custom-board.md` 新增独立 board 配置
 - 分区表适配实际 Flash，镜像不超出物理容量
 
 ## 首次部署步骤
@@ -27,17 +27,17 @@
 
 ### 2. 确认板卡配置
 
-根据实际硬件选择或新增 XiaoClaw board type，检查 `config.h`、`config.json`、Kconfig 和 partition table。移除上游默认 OTA URL/服务地址，改为经确认的开发语音服务器配置。不要把 Wi-Fi 密码、API key、token 或生产凭据提交到 Git；使用设备初始化流程、未跟踪的本地配置或受控密钥管理方式注入。
+根据实际硬件选择或新增 xiaozhi-esp32 的 board/变体，检查 board 目录中的 `config.h`、`config.json`、Kconfig 和 partition table。把设备使用的 OTA/WebSocket 地址指向自建的 xiaozhi-esp32-server。不要把 Wi-Fi 密码、API key、token 或生产凭据提交到 Git；使用设备初始化流程、未跟踪的本地配置或受控密钥管理方式注入。
 
-首版沿用 XiaoClaw 现有小智 WebSocket/Opus 语音实现和已配置语音服务器，ASR/TTS 运行在服务器；LLM 是单独的 HTTP API。部署前确认语音 OTA 返回的 WebSocket 地址、测试账号、网络可达性、TLS 证书和 LLM 地址。设备连接 RTX 4090 上的 LLM 时，必须使用设备可路由到的受控地址；不可把当前无鉴权的 `0.0.0.0:8002` 服务直接暴露到局域网或公网。
+首版使用 xiaozhi-esp32 自带的 WebSocket 或 MQTT/UDP 语音实现，ASR、Agent/LLM 与 TTS 全部运行在自建的 xiaozhi-esp32-server；设备只负责唤醒、音频编解码、显示与播放。部署前确认服务器地址、网络可达性、TLS 证书与 LLM 配置。设备连接 RTX 4090 上的 LLM 时，必须使用设备可路由到的受控地址；不可把当前无鉴权的 `0.0.0.0:8002` 服务直接暴露到局域网或公网。
 
 ### 3. 构建并审查产物
 
 ```sh
-./build-xiaoclaw-baseline.sh
+./build-xiaozhi-baseline.sh
 ```
 
-该脚本当前构建的是默认软件基线，不是任何尚未确认板型的发布镜像。目标板配置完成后，使用对应 board 的 IDF defaults 和独立 build/sdkconfig 路径重新构建，再审查：
+该脚本当前构建的是上游默认 board 基线，不是任何尚未确认板型的发布镜像。目标板配置完成后，用对应的 board/变体重新构建（可用 `BUDDYCORE_XIAOZHI_BOARD`、`BUDDYCORE_XIAOZHI_VARIANT` 覆盖默认值），再审查：
 
 - 构建日志识别到的目标芯片与板型
 - 实际 flash size、flash mode 和 partition table
@@ -58,10 +58,10 @@ idf.py -p <PORT> monitor
 退出 monitor 后，对**已验证的目标板配置**运行烧录和监视。先阅读实际构建目录中 `flash_args` 以确认地址、分区和镜像，再执行：
 
 ```sh
-idf.py -C <XIAOCLAW_SOURCE_DIR> -B <BOARD_BUILD_DIR> -p <PORT> flash monitor
+idf.py -C <XIAOZHI_SOURCE_DIR> -B <BUILD_DIR> -p <PORT> flash monitor
 ```
 
-示例中的 `<PORT>`、`<XIAOCLAW_SOURCE_DIR>` 和 `<BOARD_BUILD_DIR>` 必须替换为本机实际值。不要对当前默认 32 MB 基线使用本节命令烧录。首次写入/擦除前确认分区与板载 Flash 容量匹配；有需保留的数据时，不要执行 `erase-flash`。
+示例中的 `<PORT>`、`<XIAOZHI_SOURCE_DIR>` 和 `<BUILD_DIR>` 必须替换为本机实际值。不要对当前默认基线使用本节命令烧录。首次写入/擦除前确认分区与板载 Flash 容量匹配；有需保留的数据时，不要执行 `erase-flash`。
 
 ### 5. 设备验收
 
@@ -69,8 +69,8 @@ idf.py -C <XIAOCLAW_SOURCE_DIR> -B <BOARD_BUILD_DIR> -p <PORT> flash monitor
 
 1. ESP-SR 本地唤醒词检测。
 2. 麦克风 Opus 音频上行及语音服务器返回 STT 文本。
-3. mimi Agent 到 LLM API 的请求和回复。
-4. `tts_request`、语音服务器返回音频及扬声器播放。
+3. 服务端 Agent 到 LLM API 的请求和回复。
+4. 服务端返回的 TTS 音频及扬声器播放。
 5. 屏幕状态、按键/打断、断网恢复和连续对话。
 6. 长时间运行、内存、温度、供电与音频回授。
 

@@ -23,7 +23,7 @@ before(async () => {
 
 after(() => new Promise((resolve) => server.close(resolve)));
 
-test('persona fits upstream SOUL cache and states its boundaries', async () => {
+test('persona file is present, compact and states its boundaries', async () => {
   const soul = await readFile(new URL('../config/Lisa.Beck/SOUL.md', import.meta.url));
   assert.ok(soul.length > 0 && soul.length < 4096);
   for (const text of ['艾玛·伍兹', '简体中文', '原始录音', '不编造']) {
@@ -31,7 +31,7 @@ test('persona fits upstream SOUL cache and states its boundaries', async () => {
   }
 });
 
-test('accepts text response and sends XiaoClaw-compatible request', async () => {
+test('accepts text response and sends xiaozhi-compatible request', async () => {
   reply = { status: 200, body: { choices: [{ message: { content: '你好。' }, finish_reason: 'stop' }] } };
   const result = await checkLlm({ url, model: 'local-model', apiKey: 'test-token' });
   assert.deepEqual(result, { finishReason: 'stop', text: '你好。', toolCalls: 0 });

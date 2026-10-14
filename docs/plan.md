@@ -1,31 +1,31 @@
 # 园丁语音陪伴终端实施计划
 
-更新日期：2026-09-30
+更新日期：2026-10-14
 项目目录：[BuddyCore](../README.md)
-状态：ESP32-S3R8 芯片规格已定；XiaoClaw 与 ESP-IDF 固定版本源码、ESP-IDF 工具缓存、初始化/构建脚本均已放入 BuddyCore；项目内 XiaoClaw 软件基线交叉编译通过。完整开发板外设与 Flash 仍待确认。
+状态：ESP32-S3R8 芯片规格已定；分支 xiaozhiAI 已把依赖基线从 XiaoClaw 切换为 xiaozhi-esp32 与 xiaozhi-esp32-server，ESP-IDF 固定版本、工具缓存、初始化/构建脚本仍在 BuddyCore。固件基线待解决 ESP-IDF 版本要求（xiaozhi-esp32 需 ≥ 6.0.1，当前 esp-idf 仍为 v5.5.5）。完整开发板外设与 Flash 仍待确认。
 
 ## 目标与边界
 
-基于 [XiaoClaw](https://github.com/beancookie/xiaoclaw) 和 ESP32-S3，制作以园丁（艾玛·伍兹／丽莎·贝克）为主题的语音陪伴终端。首版提供中文人设对话、麦克风与扬声器交互、简单屏幕状态表情和合规通用 TTS。不实现实体动作、游戏玩法，也不直接复制游戏原画、台词或声音。
+基于 [xiaozhi-esp32](https://github.com/78/xiaozhi-esp32) 与 [xiaozhi-esp32-server](https://github.com/xinnan-tech/xiaozhi-esp32-server)，在 ESP32-S3 上制作以园丁（艾玛·伍兹／丽莎·贝克）为主题的语音陪伴终端。首版提供中文人设对话、麦克风与扬声器交互、简单屏幕状态表情和合规通用 TTS。不实现实体动作、游戏玩法，也不直接复制游戏原画、台词或声音。
 
-- **设备端：**离线唤醒、音频采集与播放、屏幕状态、网络连接、XiaoClaw 代理流程及必要的本地会话数据。ESP32-S3 **不运行大模型或语音合成模型**。
-- **生产服务：**沿用 XiaoClaw 当前配置的小智语音服务器提供 ASR/TTS；LLM 通过独立 API 调用。离线唤醒不意味着离线对话。
-- **调试服务：**首版先复用当前小智语音服务，不另建 ASR/TTS 网关。RTX 4090 主机用于 LLM 调试；之后如需本地语音后端，再单独评估网关适配，不阻塞首版。
+- **设备端：**离线唤醒、音频采集与播放、屏幕状态、网络连接、xiaozhi-esp32 的协议/代理流程及必要的本地会话数据。ESP32-S3 **不运行大模型或语音合成模型**。
+- **生产服务：**自建的 xiaozhi-esp32-server 提供 ASR、Agent/LLM 与 TTS。离线唤醒不意味着离线对话。
+- **调试服务：**首版先用自建的 xiaozhi-esp32-server，LLM 后端可指向当前 vLLM。RTX 4090 主机用于 LLM 调试；之后如需本地 ASR/TTS 引擎，再单独评估服务端替换，不阻塞首版。
 - **现阶段验收上限：**本机不能连接 ESP32；只能完成服务协议测试、对话与状态模拟、素材预览和有工具链时的交叉编译。烧录、收音、播放、屏幕效果与稳定性必须留待实机。
 
 ## 架构与接口
 
 ```text
-ESP32-S3 / XiaoClaw
+ESP32-S3 / xiaozhi-esp32
   |-- 本地唤醒、录音、Opus 音频、播放、屏幕表情
-  |-- mimi Agent -- HTTP --> OpenAI 兼容 LLM (/v1/chat/completions)
-  `-- XiaoClaw 现有小智语音协议 -- WebSocket/Opus --> 当前配置的语音服务器（ASR / TTS）
+  |-- xiaozhi-esp32 小智语音协议 -- WebSocket 或 MQTT/UDP --> xiaozhi-esp32-server
+  `-- 服务端 Agent -- HTTP --> OpenAI 兼容 LLM (/v1/chat/completions)
 
-调试：LLM 可指向 RTX 4090；语音仍使用 XiaoClaw 当前配置的服务
-生产：LLM 与语音服务各自使用其已配置的服务端
+调试：服务端 LLM 可指向 RTX 4090；ASR/TTS 由 xiaozhi-esp32-server 提供
+生产：LLM 与 ASR/TTS 都在自建的 xiaozhi-esp32-server 中配置
 ```
 
-LLM 与语音是**两条独立接口**：只更改 LLM API URL 不会更改 ASR/TTS。首版沿用固定 XiaoClaw 提交中的小智语音 WebSocket/Opus 实现及当前 OTA 配置返回的语音服务器。设备上传音频、接收服务器 `stt` 文本；Agent 回复后发 `tts_request`，再播放服务器返回的音频。ASR/TTS 引擎位于语音服务器，不在 ESP32 上；首版不实现新语音网关、不切换 TTS 提供方。RTX 4090 先只作为 LLM 调试端点。本地 ASR/TTS 替换属于后续可选工作，届时再验证服务器协议、TLS 与设备地址切换。
+首版沿用 xiaozhi-esp32 自带的小智语音 WebSocket/Opus（或 MQTT/UDP）实现，服务端改为自建的 xiaozhi-esp32-server。设备上传音频、接收服务端识别文本；服务端 Agent 回复后合成 TTS 音频回传，设备解码播放。ASR、Agent/LLM 与 TTS 引擎都位于服务端，不在 ESP32 上。RTX 4090 先只作为服务端的 LLM 调试端点。若后续要把 ASR/TTS 换成本地引擎，属于可选工作，届时再验证服务端协议、TLS 与设备地址切换。
 
 ## 阶段与验收
 
@@ -33,12 +33,12 @@ LLM 与语音是**两条独立接口**：只更改 LLM API URL 不会更改 ASR/
 
 | 阶段 | 状态 | 工作与交付物 | 完成条件 |
 | --- | --- | --- | --- |
-| 0. 基线与选型 | 进行中 | 已确定 ESP32-S3R8（8 MB PSRAM）；XiaoClaw 固定提交和 ESP-IDF v5.5.5 均以子模块放在 BuddyCore `dependencies/`，ESP-IDF 工具缓存在忽略目录 `dependencies/.espressif/`；已删除旧 `build/` 并从空目录完整重建成功，生成镜像 `0x2feef0` 字节；初始化/环境/构建脚本在 BuddyCore 根目录。 | 整板型号与接口明确后，选择匹配的 XiaoClaw 板型／分区并再次构建；当前重建仍采用 32 MB 默认板型，不能替代该项。 |
+| 0. 基线与选型 | 进行中 | 已确定 ESP32-S3R8（8 MB PSRAM）；xiaozhi-esp32、xiaozhi-esp32-server 与 ESP-IDF v5.5.5 均以子模块放在 BuddyCore `dependencies/`，ESP-IDF 工具缓存在忽略目录 `dependencies/.espressif/`；初始化/环境/构建脚本在 BuddyCore 根目录（此前 XiaoClaw 基线的重建记录见下方验收表）。 | 整板型号与接口明确后，选择或新增匹配的 xiaozhi-esp32 board/变体与分区并再次构建；此前的 XiaoClaw 32 MB 默认板型重建记录不能替代该项。 |
 | 1. 角色人格 | 进行中 | 校对 [Lisa Beck 角色资料](../datasets/Lisa.Beck/README.md)；编写中文人设、说话风格与对话边界，整理 10 至 20 条测试场景；将 `../config/Lisa.Beck/SOUL.md` 配置到 `/fatfs/config/SOUL.md`，检查默认文件初始化不会覆盖已有用户数据。 | 用主机侧样例验证语气、身份、敏感经历处理及失败回退；不把未经核实的角色设定当作事实。 |
-| 2. 服务接入 | 进行中 | LLM：已验证 RTX 4090 上现有 vLLM `qwen3.5-2b:8002` 的文本及园丁人格单轮请求；工具调用返回 400，暂不改共享服务。语音：首版沿用 XiaoClaw 当前 OTA 配置的语音服务器和小智协议，不部署 RTX 4090 ASR/TTS，不自建网关；检查现有地址、账号配置和连接要求，但不擅自更改生产端点。 | 有当前语音服务凭据及可访问网络后验证设备握手、STT、TTS 回包；LLM 继续验证文本与工具调用。明确密钥管理和录音保留策略。 |
+| 2. 服务接入 | 进行中 | LLM：已验证 RTX 4090 上现有 vLLM `qwen3.5-2b:8002` 的文本及园丁人格单轮请求；工具调用返回 400，暂不改共享服务。语音：首版改为自建 xiaozhi-esp32-server（ASR、Agent/LLM、TTS），协议沿用 xiaozhi-esp32 的小智 WebSocket/Opus 或 MQTT/UDP；不部署 RTX 4090 ASR/TTS。检查服务端部署地址、账号配置和连接要求，但不擅自更改生产端点。 | 有可用的自建 xiaozhi-esp32-server 实例及可访问网络后，验证设备握手、识别文本与 TTS 回包；LLM 继续验证文本与工具调用。明确密钥管理和录音保留策略。 |
 | 3. 屏幕表情 | 待办 | 为待机、聆听、思考、说话和错误状态设计原创静态表情；检查目标板显示实现及 `SetEmotion` 调用链。当前上游部分显示动画逻辑被注释，必要时做最小适配。 | 主机预览小屏素材；状态映射测试通过。实机显示仍待阶段 5 验收。 |
 | 4. 主机集成 | 待办 | 测试角色文本、LLM 探针、状态映射及错误处理；语音接口首版不另造 mock 网关，基于上游消息契约准备测试说明和配置检查。整理配置模板与固件构建步骤。 | mock/LLM 测试留存结果；固定提交及补丁可在 ESP-IDF 下交叉编译。编译通过不代表 ASR/TTS 实际服务或设备已跑通。 |
-| 5. 实机联调 | 待硬件 | 板卡到位后烧录，沿用 XiaoClaw 当前语音服务器，检查唤醒、ASR、LLM、TTS、显示、打断、断网恢复、音频啸叫、资源使用及长时间运行。 | 串口日志和逐项测试记录齐全；若板型不受上游支持，再按上游指南新增独立板型及 OTA 标识；本阶段不以新写语音网关为前提。 |
+| 5. 实机联调 | 待硬件 | 板卡到位后烧录，连接自建的 xiaozhi-esp32-server，检查唤醒、ASR、LLM、TTS、显示、打断、断网恢复、音频啸叫、资源使用及长时间运行。 | 串口日志和逐项测试记录齐全；若板型不受上游支持，再按 xiaozhi-esp32 上游指南新增独立板型及 OTA 标识。 |
 | 6. 特定声线 | 受阻：待授权 | 用户希望复刻游戏中特定声线。取得样本的训练、播放和相应展示／分发许可后，选择支持该用途的 TTS 与网关适配方案。 | 有许可记录后完成主机试听、延迟与成本测试，再做实机流式播放测试；此前持续使用通用合规 TTS，不从试听视频提取训练样本。 |
 
 阶段 1、2、3 可在阶段 0 确定源码基线后并行；阶段 4 集成三者；阶段 5 依赖硬件和当前语音服务访问条件。首版不开发语音网关；声线阶段不阻塞首版。
@@ -48,12 +48,16 @@ LLM 与语音是**两条独立接口**：只更改 LLM API URL 不会更改 ASR/
 - 已决定：ESP32-S3 不做 LLM／TTS 模型推理；生产用云端服务，开发时可用 RTX 4090 模拟同样的设备侧接口。
 - 已决定：首版包含语音陪伴和简单屏幕表情，不包含机械动作；特定游戏声线目标保留，但当前无授权。
 - 已决定：芯片规格 ESP32-S3R8，带 8 MB PSRAM；R8 不表示 Flash 容量，也不指定屏幕、音频器件或 GPIO。
-- 已决定：第一版沿用当前 XiaoClaw 的本地唤醒、WebSocket/Opus、服务器 ASR/STT 回包、`tts_request` 及服务器 TTS 音频播放实现；不自建替换网关、不迁移 ASR/TTS 到 RTX 4090。
+- 已决定（2026-10-14 分支切换后取代）：第一版曾沿用 XiaoClaw 的本地唤醒、WebSocket/Opus、服务器 ASR/STT 回包与 TTS 播放实现；现改为 xiaozhi-esp32 固件 + 自建 xiaozhi-esp32-server。仍不迁移 ASR/TTS 到 RTX 4090。
 - 已决定：RTX 4090 首版只用于 LLM 主机调试。将 ASR/TTS 接到 RTX 4090 是后续可选项，必须先单独设计/验证小智兼容服务，不作为首版前置。
-- 已决定：依赖源码固定在 BuddyCore 的 `dependencies/xiaoclaw` 与 `dependencies/esp-idf` 子模块中；工具缓存和编译输出也落在 BuddyCore 下但不提交。初始化、环境、测试和构建脚本直接位于 BuddyCore 根目录。
+- 已决定：依赖源码固定在 BuddyCore `dependencies/` 下的子模块中；工具缓存和编译输出也落在 BuddyCore 下但不提交。初始化、环境、测试和构建脚本直接位于 BuddyCore 根目录。
+- 已决定（分支 xiaozhiAI，2026-10-14）：固件基线由 XiaoClaw 改为 xiaozhi-esp32，服务端改为自建的 xiaozhi-esp32-server；`dependencies/xiaoclaw` 子模块在该分支移除，`dependencies/patches/xiaoclaw/` 仅留作历史参考。
+- 待确认：esp-idf 子模块升级到 xiaozhi-esp32 要求的 6.0.x，还是把 xiaozhi-esp32 固定到兼容 ESP-IDF 5.x 的旧版本；该项确定前固件基线无法构建。
+- 待确认：xiaozhi-esp32 的目标 board/变体（沿用上游板型或新增 BuddyCore 板型）以及 16 MB Flash 分区表是否匹配实际硬件。
+- 待确认：xiaozhi-esp32-server 的部署方式（Docker 镜像或源码部署）与运行主机（RTX 4090 或独立服务器）。
 - 已决定：按任务对象隔离资料与人格配置：`datasets/<ObjectName>/` 保存对象资料，`config/<ObjectName>/` 保存对象运行配置；Lisa Beck 已迁入各自子目录。项目级实施计划与构建默认项留在 `config/` 根层。
-- 待确认：整板／模组具体型号及 Flash 容量、屏幕与音频器件和引脚、当前 XiaoClaw 语音服务器的配置/凭据是否可用于开发测试。
-- 待确认：当前语音服务器的 OTA 下发地址、网络可达性、TLS/证书要求和测试账号；首版保持服务器选择不变，只有后续决定接本地语音服务时才评估网关替换。
+- 待确认：整板／模组具体型号及 Flash 容量、屏幕与音频器件和引脚。
+- 待确认：自建 xiaozhi-esp32-server 的部署地址、网络可达性、TLS/证书要求和测试账号；服务端部署完成前，设备侧语音链路无法实测。
 - 本机 vLLM 服务当前以 `0.0.0.0:8002` 对外监听、未配置 API 鉴权；仅用主机回环测试，设备接入前必须先限制网络访问并加鉴权，不改变其他项目的现有服务配置。
 - 待确认：角色资料与素材来源、授权范围；视频试听链接仅作为参考，不是训练素材。
 
@@ -70,5 +74,7 @@ LLM 与语音是**两条独立接口**：只更改 LLM API URL 不会更改 ASR/
 | 2026-09-30 | 首版语音方案确定 | 第一版复用 XiaoClaw 当前语音实现：本地 ESP-SR 唤醒、WebSocket/Opus 上传、语音服务器 ASR/TTS；不新增网关或 RTX 4090 语音模型部署。 | 当前 OTA 语音服务器配置/凭据尚未核验，无法在无设备条件下确认其实际 ASR/TTS 账户或做端到端实测。 |
 | 2026-09-30 | 项目结构与本地依赖 | XiaoClaw、ESP-IDF v5.5.5 及 IDF 递归子模块位于 BuddyCore `dependencies/`；工具缓存位于忽略目录 `dependencies/.espressif/`；初始化、主机测试和隔离 worktree 构建脚本均通过验证。 | 完整开发板 Flash/外设配置、当前语音服务器访问条件待确认。 |
 | 2026-09-30 | 干净重建与部署说明 | 删除原 `build/` 并执行 `./build-xiaoclaw-baseline.sh`，从头编译成功；`xiaozhi.bin` 为 `0x2feef0` 字节，app 分区余量约 40%；`./test-host.sh` 5 项通过。新增 [ESP32-S3 部署说明](../deploy/esp32-s3.md)，列出硬件确认、构建审查、烧录和验收流程。 | 未连接设备；整板 Flash/外设未知，未烧录；当前镜像仍不可作为实际 S3R8 板卡发布镜像。 |
+
+| 2026-10-14 | 分支切换（xiaozhiAI） | 新建分支 `xiaozhiAI`；依赖基线改为 xiaozhi-esp32 `e076ac496e2d93dc3a2308a0491d745afe9489ab` 与 xiaozhi-esp32-server `27399a2fb64b5910196f438a256ce0a9f868481f`（均为上游 `main`）；移除 `dependencies/xiaoclaw` 子模块，保留 `dependencies/patches/xiaoclaw/` 作历史参考；根目录构建入口改为 [`build-xiaozhi-baseline.sh`](../build-xiaozhi-baseline.sh)。 | xiaozhi-esp32 要求 ESP-IDF ≥ 6.0.1，当前 esp-idf 固定 v5.5.5，固件基线尚未交叉编译通过；xiaozhi-esp32-server 尚未部署；目标 board 未定。 |
 
 实施时在此表追加记录，并同步更新上方阶段状态。已有主机侧交叉编译与测试结果；没有烧录或运行设备测试。

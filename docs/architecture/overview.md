@@ -4,8 +4,9 @@
 
 ```text
 BuddyCore
-|-- dependencies/xiaoclaw/  pinned firmware base
-|-- dependencies/esp-idf/   pinned ESP-IDF source and nested components
+|-- dependencies/xiaozhi-esp32/         pinned firmware base
+|-- dependencies/xiaozhi-esp32-server/  pinned ASR/LLM/TTS service source
+|-- dependencies/esp-idf/               pinned ESP-IDF source and nested components
 |-- firmware/               BuddyCore sdkconfig overlays and upstream patches
 |-- persona/                persona prompt source
 |-- services/               host-side API contract probes
@@ -17,19 +18,19 @@ BuddyCore
 `-- dependencies/.espressif/ ignored ESP-IDF tools and Python environment
 ```
 
-The root Git repository pins XiaoClaw and ESP-IDF as submodules. Keep project-specific source changes as small patches under `dependencies/patches/<dependency>/`; do not edit a dependency checkout without recording the equivalent patch. Generated build output, credentials, model weights and tool binaries are not versioned.
+The root Git repository pins xiaozhi-esp32, xiaozhi-esp32-server and ESP-IDF as submodules. Branch `xiaozhiAI` replaces the former XiaoClaw firmware base with xiaozhi-esp32 and adds the self-hosted service. Keep project-specific source changes as small patches under `dependencies/patches/<dependency>/`; do not edit a dependency checkout without recording the equivalent patch. Generated build output, credentials, model weights and tool binaries are not versioned.
 
 ## Runtime Flow
 
 1. ESP-SR detects the wake word locally on the ESP32-S3.
-2. XiaoClaw records audio, encodes Opus and sends it through its configured Xiaozhi WebSocket protocol.
-3. The configured voice server performs ASR and returns an `stt` text event.
-4. The Mimi Agent builds the persona prompt and sends a request to the configured OpenAI-compatible LLM API.
-5. The Agent response returns through the bridge; XiaoClaw sends `tts_request` to the same voice session.
-6. The voice server returns TTS audio; XiaoClaw decodes and plays it locally.
+2. xiaozhi-esp32 records audio, encodes Opus and sends it over its WebSocket or MQTT/UDP protocol.
+3. xiaozhi-esp32-server performs ASR and returns the recognised text to the device.
+4. The server-side agent builds the persona prompt and calls the configured OpenAI-compatible LLM API.
+5. The server synthesises TTS audio and streams it back over the same session.
+6. xiaozhi-esp32 decodes the returned audio and plays it locally.
 
-LLM HTTP and Xiaozhi voice transport are separate endpoints. The first release reuses XiaoClaw's existing voice-server configuration. It does not add a new ASR/TTS gateway. RTX 4090 currently serves only as an LLM development backend; deploying local ASR/TTS remains a separate future decision.
+The ASR, LLM and TTS stages all live in the self-hosted xiaozhi-esp32-server deployment; the device keeps wake-word detection, Opus encode/decode, display state and playback. RTX 4090 currently serves only as an LLM development backend; deploying local ASR/TTS remains a separate future decision.
 
 ## Current Validation Boundary
 
-Host tests validate the persona file and OpenAI-compatible request/response shape. The pinned XiaoClaw baseline cross-build validates source/toolchain compatibility under its default board assumptions. Neither test validates the selected physical board, network access to the configured voice server, microphone/speaker operation, or real-time speech latency.
+Host tests validate the persona file and OpenAI-compatible request/response shape. The pinned xiaozhi-esp32 baseline cross-build validates source/toolchain compatibility for one upstream board variant, but only once the esp-idf pin satisfies xiaozhi-esp32's ESP-IDF >= 6.0.1 requirement; the currently pinned ESP-IDF v5.5.5 cannot build it. Neither test validates the selected physical board, network access to the voice server, microphone/speaker operation, or real-time speech latency.
