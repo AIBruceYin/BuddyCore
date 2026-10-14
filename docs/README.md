@@ -2,9 +2,9 @@
 
 ## Software:
 ```
-基于 xiaozhi-esp32 (https://github.com/78/xiaozhi-esp32)，基线提交 e076ac496e2d93dc3a2308a0491d745afe9489ab；服务端基于 xiaozhi-esp32-server (https://github.com/xinnan-tech/xiaozhi-esp32-server)，基线提交 27399a2fb64b5910196f438a256ce0a9f868481f。
+基于 xiaozhi-esp32 (https://github.com/78/xiaozhi-esp32)，固定 release v2.3.0（提交 1b48ebd7863695bf80d384c6c09af6299a6d7d0e，兼容 ESP-IDF 5.x）；服务端基于 xiaozhi-esp32-server (https://github.com/xinnan-tech/xiaozhi-esp32-server)，基线提交 27399a2fb64b5910196f438a256ce0a9f868481f。
 ESP32-S3 负责离线唤醒、语音采集与播放、屏幕交互和 Agent 流程；大模型与语音合成均由服务端执行。
-LLM 与语音服务都在本项目自建的 xiaozhi-esp32-server 中配置：ASR 与 TTS 由该服务执行，LLM 可调用云端 API 或调试用 RTX 4090 服务。设备端不运行大模型或 TTS 模型。
+LLM 与语音服务都在本项目自建的 xiaozhi-esp32-server 中配置，测试阶段该服务部署在本机：ASR 与 TTS 由该服务执行，LLM 可调用云端 API（访问方式由项目负责人提供）或调试用 RTX 4090 服务。设备端不运行大模型或 TTS 模型。
 ```
 
 ## Hardware:
@@ -36,7 +36,7 @@ git submodule update --init --recursive
 ./build-xiaozhi-baseline.sh
 ```
 
-构建命令使用 xiaozhi-esp32 默认板型与 16 MB Flash 分区表，只是软件基线，不是实际 S3R8 整板的可烧录镜像。需确认完整开发板和外设后再配置目标板。注意 xiaozhi-esp32 要求 ESP-IDF 6.0.1 及以上，项目当前固定的 esp-idf v5.5.5 尚不满足，构建前需先确定 IDF 版本。
+构建命令使用 xiaozhi-esp32 v2.3.0 的默认板型（`bread-compact-wifi`）与 16 MB Flash 分区表，只是软件基线，不是实际 S3R8 整板的可烧录镜像。需确认完整开发板和外设后再配置目标板。该版本要求 ESP-IDF ≥ 5.5.2，项目固定的 esp-idf v5.5.5 满足要求；v2.4.0 起上游主线改到 ESP-IDF 6.x，本项目暂不跟进。
 
 现有 LLM 主机探针用法和当前 vLLM 服务安全边界见 [服务部署说明](../deploy/README.md)。Lisa Beck 人格配置位于 `../config/Lisa.Beck/SOUL.md`，将作为 xiaozhi-esp32-server 侧智能体的人格来源，尚未接入服务端；正式接入需另行验证服务端提示词与设备侧设置的优先级。项目配置和任务对象隔离约定见 [config 说明](../config/README.md)。角色资料位于 [datasets/Lisa.Beck/](../datasets/Lisa.Beck/README.md)。
 

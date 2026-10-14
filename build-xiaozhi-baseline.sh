@@ -3,40 +3,59 @@ set -euo pipefail
 
 # BuddyCore firmware baseline build (branch xiaozhiAI).
 #
-# Delegates to xiaozhi-esp32's own canonical board/variant build entry point
-# (scripts/build.py), which configures one board variant and runs idf.py for
-# it. Board selection is a coupled chain in the upstream repository:
-# config.json -> scripts/build.py -> main/Kconfig.projbuild -> main/CMakeLists.txt
-# -> board source and config.h. Do not edit generated sdkconfig or the
-# upstream checkout; add a uniquely named board or variant instead.
+# xiaozhi-esp32 is pinned to v2.3.0, the newest upstream release whose mainline
+# targets ESP-IDF 5.x: it declares "idf: version: '>=5.5.2'" in
+# main/idf_component.yml and its Kconfig default board is
+# BOARD_TYPE_BREAD_COMPACT_WIFI. v2.4.0 and later moved the mainline to
+# ESP-IDF 6.x, which this project does not install yet.
 #
-# ESP-IDF version: the pinned xiaozhi-esp32 requires ESP-IDF >= 6.0.1 and does
-# not support IDF 5.x. The esp-idf submodule currently pinned at v5.5.5 cannot
-# build this firmware. Raise the esp-idf pin (and rerun ./bootstrap-idf.sh)
-# before relying on this script.
+# At this pin the canonical build is plain idf.py. Board selection is a Kconfig
+# choice (main/Kconfig.projbuild) that main/CMakeLists.txt maps to
+# main/boards/<board>, and BOARD_NAME is a required compile-time identity (the
+# device name reported over OTA/protocol). There is no scripts/build.py yet.
+# Only build one board per invocation: the build directory holds that board's
+# generated sdkconfig.
+#
+# The upstream checkout stays untouched: generated sdkconfig and build output
+# live under BuddyCore's ignored build directory.
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 XIAOZHI_DIR="$ROOT/dependencies/xiaozhi-esp32"
-BOARD="${BUDDYCORE_XIAOZHI_BOARD:-bread-compact-wifi}"
-VARIANT="${BUDDYCORE_XIAOZHI_VARIANT:-bread-compact-wifi}"
-LANGUAGE="${BUDDYCORE_XIAOZHI_LANGUAGE:-zh-CN}"
+BOARD_NAME="${BUDDYCORE_XIAOZHI_BOARD_NAME:-bread-compact-wifi}"
+BOARD_CONFIG="${BUDDYCORE_XIAOZHI_BOARD_CONFIG:-CONFIG_BOARD_TYPE_BREAD_COMPACT_WIFI=y}"
+EXTRA_CONFIG="${BUDDYCORE_XIAOZHI_EXTRA_CONFIG:-}"
+BUILD_DIR="${BUDDYCORE_XIAOZHI_BUILD_DIR:-$ROOT/build/xiaozhi-esp32/$BOARD_NAME}"
+BOARD_DEFAULTS="$ROOT/build/xiaozhi-esp32/$BOARD_NAME.board.defaults"
 
-if [[ ! -f "$XIAOZHI_DIR/scripts/build.py" ]]; then
-  echo "xiaozhi-esp32 submodule is missing. Run: git submodule update --init --recursive" >&2
+if [[ ! -f "$XIAOZHI_DIR/main/Kconfig.projbuild" ]]; then
+  echo "xiaozhi-esp32 submodule is missing or incomplete. Run: git submodule update --init --recursive" >&2
   exit 1
 fi
 
 source "$ROOT/idf-env.sh"
 
+mkdir -p "$BUILD_DIR"
+{
+  printf '%s\n' "$BOARD_CONFIG"
+  if [[ -n "$EXTRA_CONFIG" ]]; then
+    printf '%s\n' "$EXTRA_CONFIG"
+  fi
+} > "$BOARD_DEFAULTS"
+
 echo "ESP-IDF:       $(idf.py --version 2>/dev/null || echo unknown)"
-echo "xiaozhi-esp32: $(git -C "$XIAOZHI_DIR" rev-parse HEAD)"
-echo "board=$BOARD variant=$VARIANT language=$LANGUAGE"
+echo "xiaozhi-esp32: $(git -C "$XIAOZHI_DIR" describe --tags --always) ($(git -C "$XIAOZHI_DIR" rev-parse --short HEAD))"
+echo "board=$BOARD_NAME ($BOARD_CONFIG)"
 
-# List valid board/variant pairs with:
-#   python3 dependencies/xiaozhi-esp32/scripts/build.py --list-boards
-cd "$XIAOZHI_DIR"
-python3 scripts/build.py "$BOARD" --name "$VARIANT" --language "$LANGUAGE"
+# ESP-IDF also applies "<file>.<target>" next to each defaults file, so the
+# upstream sdkconfig.defaults.esp32s3 is picked up automatically.
+export SDKCONFIG_DEFAULTS="$XIAOZHI_DIR/sdkconfig.defaults;$BOARD_DEFAULTS"
 
-echo "Baseline build finished. Upstream build output stays under $XIAOZHI_DIR/build/."
-echo "This is the upstream default board baseline, not a release image: confirm board model,"
-echo "flash size, display/audio parts, pinout and partition layout before flashing."
+idf.py -C "$XIAOZHI_DIR" -B "$BUILD_DIR" \
+  -DSDKCONFIG="$BUILD_DIR/sdkconfig" \
+  -DIDF_TARGET=esp32s3 \
+  -DBOARD_NAME="$BOARD_NAME" \
+  build
+
+echo "Baseline build finished: $BUILD_DIR"
+echo "Upstream default board baseline, not a release image: confirm board model, flash size,"
+echo "display/audio parts, pinout and partition layout before flashing."

@@ -2,7 +2,7 @@
 
 更新日期：2026-10-14
 项目目录：[BuddyCore](../README.md)
-状态：ESP32-S3R8 芯片规格已定；分支 xiaozhiAI 已把依赖基线从 XiaoClaw 切换为 xiaozhi-esp32 与 xiaozhi-esp32-server，ESP-IDF 固定版本、工具缓存、初始化/构建脚本仍在 BuddyCore。固件基线待解决 ESP-IDF 版本要求（xiaozhi-esp32 需 ≥ 6.0.1，当前 esp-idf 仍为 v5.5.5）。完整开发板外设与 Flash 仍待确认。
+状态：ESP32-S3R8 芯片规格已定；分支 xiaozhiAI 已把依赖基线从 XiaoClaw 切换为 xiaozhi-esp32（固定 v2.3.0，兼容 ESP-IDF 5.x）与 xiaozhi-esp32-server，ESP-IDF v5.5.5、工具缓存、初始化/构建脚本仍在 BuddyCore。xiaozhi-esp32-server 测试期部署在本机；完整开发板外设与 Flash 仍待确认。
 
 ## 目标与边界
 
@@ -52,9 +52,10 @@ ESP32-S3 / xiaozhi-esp32
 - 已决定：RTX 4090 首版只用于 LLM 主机调试。将 ASR/TTS 接到 RTX 4090 是后续可选项，必须先单独设计/验证小智兼容服务，不作为首版前置。
 - 已决定：依赖源码固定在 BuddyCore `dependencies/` 下的子模块中；工具缓存和编译输出也落在 BuddyCore 下但不提交。初始化、环境、测试和构建脚本直接位于 BuddyCore 根目录。
 - 已决定（分支 xiaozhiAI，2026-10-14）：固件基线由 XiaoClaw 改为 xiaozhi-esp32，服务端改为自建的 xiaozhi-esp32-server；`dependencies/xiaoclaw` 子模块在该分支移除，`dependencies/patches/xiaoclaw/` 仅留作历史参考。
-- 待确认：esp-idf 子模块升级到 xiaozhi-esp32 要求的 6.0.x，还是把 xiaozhi-esp32 固定到兼容 ESP-IDF 5.x 的旧版本；该项确定前固件基线无法构建。
+- 已决定（2026-10-14）：保留 esp-idf v5.5.5，把 xiaozhi-esp32 固定到 v2.3.0（提交 `1b48ebd7863695bf80d384c6c09af6299a6d7d0e`）；v2.4.0 起上游主线要求 ESP-IDF 6.x，该升级留待后续单独决策。
 - 待确认：xiaozhi-esp32 的目标 board/变体（沿用上游板型或新增 BuddyCore 板型）以及 16 MB Flash 分区表是否匹配实际硬件。
-- 待确认：xiaozhi-esp32-server 的部署方式（Docker 镜像或源码部署）与运行主机（RTX 4090 或独立服务器）。
+- 已决定（2026-10-14）：xiaozhi-esp32-server 的测试阶段部署在项目负责人本机；其调用的云端大模型访问方式（地址、账号、密钥）同样由项目负责人提供，不入库。
+- 待确认：生产阶段的部署方式（Docker 镜像或源码部署）与运行主机（RTX 4090 或独立服务器）。
 - 已决定：按任务对象隔离资料与人格配置：`datasets/<ObjectName>/` 保存对象资料，`config/<ObjectName>/` 保存对象运行配置；Lisa Beck 已迁入各自子目录。项目级实施计划与构建默认项留在 `config/` 根层。
 - 待确认：整板／模组具体型号及 Flash 容量、屏幕与音频器件和引脚。
 - 待确认：自建 xiaozhi-esp32-server 的部署地址、网络可达性、TLS/证书要求和测试账号；服务端部署完成前，设备侧语音链路无法实测。
@@ -76,5 +77,6 @@ ESP32-S3 / xiaozhi-esp32
 | 2026-09-30 | 干净重建与部署说明 | 删除原 `build/` 并执行 `./build-xiaoclaw-baseline.sh`，从头编译成功；`xiaozhi.bin` 为 `0x2feef0` 字节，app 分区余量约 40%；`./test-host.sh` 5 项通过。新增 [ESP32-S3 部署说明](../deploy/esp32-s3.md)，列出硬件确认、构建审查、烧录和验收流程。 | 未连接设备；整板 Flash/外设未知，未烧录；当前镜像仍不可作为实际 S3R8 板卡发布镜像。 |
 
 | 2026-10-14 | 分支切换（xiaozhiAI） | 新建分支 `xiaozhiAI`；依赖基线改为 xiaozhi-esp32 `e076ac496e2d93dc3a2308a0491d745afe9489ab` 与 xiaozhi-esp32-server `27399a2fb64b5910196f438a256ce0a9f868481f`（均为上游 `main`）；移除 `dependencies/xiaoclaw` 子模块，保留 `dependencies/patches/xiaoclaw/` 作历史参考；根目录构建入口改为 [`build-xiaozhi-baseline.sh`](../build-xiaozhi-baseline.sh)。 | xiaozhi-esp32 要求 ESP-IDF ≥ 6.0.1，当前 esp-idf 固定 v5.5.5，固件基线尚未交叉编译通过；xiaozhi-esp32-server 尚未部署；目标 board 未定。 |
+| 2026-10-14 | 版本决策与测试部署 | 确定保留 ESP-IDF v5.5.5，把 xiaozhi-esp32 改为固定 release `v2.3.0`（提交 `1b48ebd7863695bf80d384c6c09af6299a6d7d0e`，声明 `idf: >=5.5.2`）；构建入口改为按 Kconfig 板型直接调用 `idf.py`（该版本尚无 `scripts/build.py`）。测试阶段 xiaozhi-esp32-server 部署在项目负责人本机，云端 LLM 访问方式由项目负责人提供。 | 本机无 ESP-IDF 工具链（`dependencies/.espressif` 为空、无 cmake/ninja），基线尚未在新的固定版本下交叉编译；目标 board 未定；服务端与本机 LLM 访问细节尚未记录。 |
 
 实施时在此表追加记录，并同步更新上方阶段状态。已有主机侧交叉编译与测试结果；没有烧录或运行设备测试。

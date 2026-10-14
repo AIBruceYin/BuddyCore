@@ -37,7 +37,7 @@
 ./build-xiaozhi-baseline.sh
 ```
 
-该脚本当前构建的是上游默认 board 基线，不是任何尚未确认板型的发布镜像。目标板配置完成后，用对应的 board/变体重新构建（可用 `BUDDYCORE_XIAOZHI_BOARD`、`BUDDYCORE_XIAOZHI_VARIANT` 覆盖默认值），再审查：
+该脚本当前构建的是上游默认 board 基线（xiaozhi-esp32 v2.3.0 默认 `BREAD_COMPACT_WIFI`），不是任何尚未确认板型的发布镜像。目标板配置完成后，用对应的 board 重新构建（可用 `BUDDYCORE_XIAOZHI_BOARD_NAME`（同时作为设备上报的 `BOARD_NAME`）、`BUDDYCORE_XIAOZHI_BOARD_CONFIG`、`BUDDYCORE_XIAOZHI_EXTRA_CONFIG`、`BUDDYCORE_XIAOZHI_BUILD_DIR` 覆盖默认值），再审查：
 
 - 构建日志识别到的目标芯片与板型
 - 实际 flash size、flash mode 和 partition table

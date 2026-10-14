@@ -33,4 +33,4 @@ The ASR, LLM and TTS stages all live in the self-hosted xiaozhi-esp32-server dep
 
 ## Current Validation Boundary
 
-Host tests validate the persona file and OpenAI-compatible request/response shape. The pinned xiaozhi-esp32 baseline cross-build validates source/toolchain compatibility for one upstream board variant, but only once the esp-idf pin satisfies xiaozhi-esp32's ESP-IDF >= 6.0.1 requirement; the currently pinned ESP-IDF v5.5.5 cannot build it. Neither test validates the selected physical board, network access to the voice server, microphone/speaker operation, or real-time speech latency.
+Host tests validate the persona file and OpenAI-compatible request/response shape. The pinned xiaozhi-esp32 v2.3.0 baseline cross-build validates source/toolchain compatibility for the upstream default board against the pinned ESP-IDF v5.5.5, which satisfies that release's `>=5.5.2` requirement. Neither test validates the selected physical board, network access to the voice server, microphone/speaker operation, or real-time speech latency.
