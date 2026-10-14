@@ -25,3 +25,10 @@ __pycache__/
 sdkconfig
 sdkconfig.old
 sdkconfig.*.local
+
+# Local xiaozhi-esp32-server deployment state (docker compose)
+/deploy/server/.env
+/deploy/server/data/
+/deploy/server/mysql/
+/deploy/server/uploadfile/
+/deploy/server/models/

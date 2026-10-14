@@ -1,0 +1,21 @@
+# BuddyCore 智控台模式模板 → 由 ./start-server.sh 渲染成 deploy/server/data/.config.yaml
+#
+# 变量来自 deploy/server/.env。生成的文件含密钥，已被 .gitignore 忽略。
+# 智控台模式下服务端从 manager-api 拉取模块与智能体配置，因此本文件不能再包含
+# selected_module（上游会直接报错），模型、提示词与设备绑定都在智控台里配置。
+# 这里只保留必须本地决定的部分：监听端口、视觉分析地址、智控台地址与密钥。
+
+server:
+  ip: 0.0.0.0
+  port: ${PORT_WS}
+  http_port: ${PORT_HTTP}
+  vision_explain: http://${PUBLIC_HOST}:${PORT_HTTP}/mcp/vision/explain
+  timezone_offset: +8
+  auth:
+    enabled: false
+
+manager-api:
+  url: ${MANAGER_API_URL}
+  secret: ${MANAGER_SECRET}
+
+prompt_template: agent-base-prompt.txt

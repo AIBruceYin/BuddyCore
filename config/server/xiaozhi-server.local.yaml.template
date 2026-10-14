@@ -1,0 +1,31 @@
+# BuddyCore 轻量模式模板 → 由 ./start-server.sh 渲染成 deploy/server/data/.config.yaml
+#
+# 变量来自 deploy/server/.env。生成的文件含密钥，已被 .gitignore 忽略。
+# 轻量模式不使用智控台：server、selected_module 与所选模块的参数都在这里给出，
+# 父级 config.yaml 的其余配置（VAD、prompt_template、日志、工具等）会自动合并。
+#
+# 注意：本模式下不要出现 manager-api，否则服务端会改为从智控台拉取配置。
+
+server:
+  ip: 0.0.0.0
+  port: ${PORT_WS}
+  http_port: ${PORT_HTTP}
+  websocket: ws://${PUBLIC_HOST}:${PORT_WS}/xiaozhi/v1/
+  vision_explain: http://${PUBLIC_HOST}:${PORT_HTTP}/mcp/vision/explain
+  timezone_offset: +8
+  auth:
+    enabled: false
+
+selected_module:
+  LLM: ${LLM_MODULE}
+  ASR: ${ASR_MODULE}
+  TTS: ${TTS_MODULE}
+
+LLM:
+  DoubaoLLM:
+    type: openai
+    base_url: ${ARK_BASE_URL}
+    model_name: ${ARK_MODEL}
+    api_key: ${ARK_API_KEY}
+    temperature: 0.7
+    max_tokens: 500

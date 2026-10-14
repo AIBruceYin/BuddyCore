@@ -38,5 +38,14 @@ git submodule update --init --recursive
 
 构建命令使用 xiaozhi-esp32 v2.3.0 的默认板型（`bread-compact-wifi`）与 16 MB Flash 分区表，只是软件基线，不是实际 S3R8 整板的可烧录镜像。需确认完整开发板和外设后再配置目标板。该版本要求 ESP-IDF ≥ 5.5.2，项目固定的 esp-idf v5.5.5 满足要求；v2.4.0 起上游主线改到 ESP-IDF 6.x，本项目暂不跟进。
 
+服务端（自建 xiaozhi-esp32-server）用 Docker 启动，与固件构建互不依赖：
+
+```sh
+cp deploy/server/.env.example deploy/server/.env   # 填密钥
+./start-server.sh up
+```
+
+端口沿用上游默认（8000 设备 WebSocket、8003 服务端 HTTP、8002 智控台）；细节见 [服务部署边界](../deploy/README.md#server-deployment-docker)。
+
 现有 LLM 主机探针用法和当前 vLLM 服务安全边界见 [服务部署说明](../deploy/README.md)。Lisa Beck 人格配置位于 `../config/Lisa.Beck/SOUL.md`，将作为 xiaozhi-esp32-server 侧智能体的人格来源，尚未接入服务端；正式接入需另行验证服务端提示词与设备侧设置的优先级。项目配置和任务对象隔离约定见 [config 说明](../config/README.md)。角色资料位于 [datasets/Lisa.Beck/](../datasets/Lisa.Beck/README.md)。
 

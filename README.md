@@ -40,12 +40,14 @@ git submodule update --init --recursive
 | `. ./idf-env.sh` | 把 ESP-IDF 环境载入当前 shell；必须 source。 | 每个新终端一次；手动运行 `idf.py` 时使用。 |
 | `./build-xiaozhi-baseline.sh` | 自动载入 IDF 环境，按指定 board 交叉编译 xiaozhi-esp32（板型通过 Kconfig 选择，默认 `bread-compact-wifi`）。 | 每次需要构建软件基线时运行；不要求先手动 source 环境。 |
 | `./test-host.sh` | 运行主机端协议与配置测试，不依赖 ESP-IDF。 | 开发期间随时运行。 |
+| `./start-server.sh` | 按 `deploy/server/.env` 生成 `data/.config.yaml`，并用 Docker 启动自建的 xiaozhi-esp32-server（本地与云服务器通用）。 | 需要跑服务端时；首次先复制 `deploy/server/.env.example` 为 `.env`。 |
 
 常用验证命令：
 
 ```sh
 ./test-host.sh
 ./build-xiaozhi-baseline.sh
+./start-server.sh up
 ```
 
 固件基线使用 xiaozhi-esp32 `v2.3.0` 的 `bread-compact-wifi` 板型（16 MB Flash 分区表），仅用于主机编译验证。该版本声明需要 ESP-IDF ≥ 5.5.2，项目固定的 esp-idf v5.5.5 满足要求；v2.4.0 起上游主线已改到 ESP-IDF 6.x，本项目暂不跟进。确认实际开发板后才能选择或新增正确板型与分区；不要将基线镜像烧录到未经确认的硬件。
