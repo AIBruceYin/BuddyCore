@@ -1,5 +1,5 @@
 diff --git a/main/xiaozhi-server/core/providers/tts/huoshan_double_stream.py b/main/xiaozhi-server/core/providers/tts/huoshan_double_stream.py
-index e1211109..006146de 100644
+index e1211109..9efc1ef4 100644
 --- a/main/xiaozhi-server/core/providers/tts/huoshan_double_stream.py
 +++ b/main/xiaozhi-server/core/providers/tts/huoshan_double_stream.py
 @@ -146,9 +146,13 @@ class TTSProvider(TTSProviderBase):
@@ -17,7 +17,17 @@ index e1211109..006146de 100644
          self.report_on_last = self.resource_type
          self.activate_session = False
          if config.get("private_voice"):
-@@ -233,12 +237,21 @@ class TTSProvider(TTSProviderBase):
+@@ -202,7 +206,8 @@ class TTSProvider(TTSProviderBase):
+         self.enable_ws_reuse = False if str(enable_ws_reuse_value).lower() == 'false' else True
+         self.tts_text = ""
+ 
+-        model_key_msg = check_model_key("TTS", self.access_token)
++        # 新版鉴权用 api_key，校验要按实际使用的凭据判断（旧配置仍在 access_token 里）
++        model_key_msg = check_model_key("TTS", self.api_key or self.access_token or "")
+         if model_key_msg:
+             logger.bind(tag=TAG).error(model_key_msg)
+ 
+@@ -233,12 +238,21 @@ class TTSProvider(TTSProviderBase):
              # 建立新连接前取消旧监听任务
              await self._cancel_monitor_task()
  
