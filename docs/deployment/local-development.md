@@ -76,11 +76,18 @@ $env:IDF_GITHUB_ASSETS = "dl.espressif.com/github_assets"   # China: avoid githu
 
 $env:BUDDYCORE_XIAOZHI_BOARD_NAME   = "esp32-s3-touch-lcd-1.85c"
 $env:BUDDYCORE_XIAOZHI_BOARD_CONFIG = "CONFIG_BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_LCD_1_85C=y"
-$env:BUDDYCORE_XIAOZHI_EXTRA_CONFIG = "CONFIG_VERSION_1_0=y`nCONFIG_OTA_URL=`"http://<host>:8003/xiaozhi/ota/`""
+$env:BUDDYCORE_XIAOZHI_EXTRA_CONFIG_FILE = "config\firmware\sdkconfig.buddycore-s3-touch-lcd-1.85c.defaults"
+$env:BUDDYCORE_XIAOZHI_EXTRA_CONFIG = "CONFIG_OTA_URL=`"http://<host>:8003/xiaozhi/ota/`""
 $env:BUDDYCORE_XIAOZHI_SHORT_ROOT   = "D:\zs"    # Windows command-line limit workaround
 $env:BUDDYCORE_XIAOZHI_BUILD_DIR    = "D:\zsz"
 powershell -NoProfile -ExecutionPolicy Bypass -File .\build-xiaozhi-baseline.ps1
 ```
+
+Board specifics for the Waveshare ESP32-S3-Touch-LCD-1.85C kit (see `config/firmware/`):
+
+* `CONFIG_VERSION_1_0=y` — the kit has no ES8311/ES7210 codec chips; the board's Kconfig default `VERSION_2_0` boots into `assert failed: BoxAudioCodec::BoxAudioCodec ... (out_codec_if_ != NULL)` on this hardware.
+* Wake word `你好Lisa` is a MultiNet custom keyword (`CONFIG_CUSTOM_WAKE_WORD="ni hao li sa"`, `CONFIG_SR_MN_CN_MULTINET7_QUANT=y`); WakeNet models are a fixed vocabulary and cannot express it. MultiNet is recognition-based, so the threshold (`CONFIG_CUSTOM_WAKE_WORD_THRESHOLD`, default 20, lower = more sensitive) may need tuning per room.
+* The BOOT button (GPIO0) click starts/stops a conversation without the wake word.
 
 Three Windows-specific traps, all hit during the first real build:
 

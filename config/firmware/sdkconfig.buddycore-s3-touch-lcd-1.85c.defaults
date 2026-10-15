@@ -1,0 +1,22 @@
+# BuddyCore 真机固件配置（waveshare ESP32-S3-Touch-LCD-1.85C 套件）
+#
+# 用法（Windows）：
+#   $env:BUDDYCORE_XIAOZHI_BOARD_NAME   = "esp32-s3-touch-lcd-1.85c"
+#   $env:BUDDYCORE_XIAOZHI_BOARD_CONFIG = "CONFIG_BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_LCD_1_85C=y"
+#   $env:BUDDYCORE_XIAOZHI_EXTRA_CONFIG_FILE = "config\firmware\sdkconfig.buddycore-s3-touch-lcd-1.85c.defaults"
+#   $env:BUDDYCORE_XIAOZHI_EXTRA_CONFIG = 'CONFIG_OTA_URL="http://<本机局域网IP>:8003/xiaozhi/ota/"'
+# OTA 地址按部署主机填写，故不放进本文件。
+
+# 硬件版本：该套件无 ES8311/ES7210 编解码芯片，音频走直连 I2S。
+# 若误用板型默认的 VERSION_2_0，启动会崩在
+# assert failed: BoxAudioCodec::BoxAudioCodec ... (out_codec_if_ != NULL)
+CONFIG_VERSION_1_0=y
+
+# 唤醒词：MultiNet 自定义词（中文用拼音，空格分隔）
+CONFIG_USE_CUSTOM_WAKE_WORD=y
+CONFIG_CUSTOM_WAKE_WORD="ni hao li sa"
+CONFIG_CUSTOM_WAKE_WORD_DISPLAY="你好Lisa"
+# 数值越小越灵敏（默认 20）；误触发多就调大，叫不醒就调小
+CONFIG_CUSTOM_WAKE_WORD_THRESHOLD=20
+# MultiNet 需要中文通用识别模型（AC 版是空调指令集，不要用）
+CONFIG_SR_MN_CN_MULTINET7_QUANT=y

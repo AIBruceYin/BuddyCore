@@ -26,6 +26,7 @@
 # Usage from the repository root:
 #   $env:BUDDYCORE_XIAOZHI_BOARD_NAME   = "esp32-s3-touch-lcd-1.85c"
 #   $env:BUDDYCORE_XIAOZHI_BOARD_CONFIG = "CONFIG_BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_LCD_1_85C=y"
+#   $env:BUDDYCORE_XIAOZHI_EXTRA_CONFIG_FILE = "config\firmware\sdkconfig.buddycore-s3-touch-lcd-1.85c.defaults"
 #   $env:BUDDYCORE_XIAOZHI_EXTRA_CONFIG = "CONFIG_OTA_URL=`"http://192.168.1.15:8003/xiaozhi/ota/`""
 #   powershell -NoProfile -ExecutionPolicy Bypass -File .\build-xiaozhi-baseline.ps1
 # Defaults (same as the bash version): bread-compact-wifi.
@@ -41,6 +42,7 @@ $ShortRoot = $env:BUDDYCORE_XIAOZHI_SHORT_ROOT
 $BoardName = if ($env:BUDDYCORE_XIAOZHI_BOARD_NAME) { $env:BUDDYCORE_XIAOZHI_BOARD_NAME } else { 'bread-compact-wifi' }
 $BoardConfig = if ($env:BUDDYCORE_XIAOZHI_BOARD_CONFIG) { $env:BUDDYCORE_XIAOZHI_BOARD_CONFIG } else { 'CONFIG_BOARD_TYPE_BREAD_COMPACT_WIFI=y' }
 $ExtraConfig = if ($env:BUDDYCORE_XIAOZHI_EXTRA_CONFIG) { $env:BUDDYCORE_XIAOZHI_EXTRA_CONFIG } else { '' }
+$ExtraConfigFile = $env:BUDDYCORE_XIAOZHI_EXTRA_CONFIG_FILE
 $BuildDir = if ($env:BUDDYCORE_XIAOZHI_BUILD_DIR) { $env:BUDDYCORE_XIAOZHI_BUILD_DIR } else { Join-Path $Root "build\xiaozhi-esp32\$BoardName" }
 $DefaultsFile = Join-Path $Root "build\xiaozhi-esp32\$BoardName.board.defaults"
 
@@ -66,8 +68,15 @@ Remove-Item Env:VIRTUAL_ENV -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force -Path $BuildDir | Out-Null
 New-Item -ItemType Directory -Force -Path (Split-Path -Parent $DefaultsFile) | Out-Null
 $defaultsLines = @($BoardConfig)
+if ($ExtraConfigFile) {
+    $extraPath = if ([System.IO.Path]::IsPathRooted($ExtraConfigFile)) { $ExtraConfigFile } else { Join-Path $Root $ExtraConfigFile }
+    if (-not (Test-Path $extraPath)) { throw "Extra config file not found: $extraPath" }
+    $defaultsLines += (Get-Content $extraPath -Encoding UTF8 | Where-Object { $_.Trim() -ne '' })
+}
 if ($ExtraConfig) { $defaultsLines += ($ExtraConfig -split "`n") }
-Set-Content -Path $DefaultsFile -Value $defaultsLines -Encoding ascii
+# UTF-8 without BOM: values can contain Chinese (e.g. CONFIG_CUSTOM_WAKE_WORD_DISPLAY)
+# and -Encoding ascii would mangle them while a BOM would annoy kconfgen.
+[System.IO.File]::WriteAllText($DefaultsFile, (($defaultsLines -join "`r`n") + "`r`n"), (New-Object System.Text.UTF8Encoding($false)))
 $env:SDKCONFIG_DEFAULTS = "$Xiaozhi\sdkconfig.defaults;$DefaultsFile"
 
 Write-Host "ESP-IDF:  $(idf.py --version)"
