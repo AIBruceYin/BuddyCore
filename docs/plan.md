@@ -57,7 +57,8 @@ ESP32-S3 / xiaozhi-esp32
 - 已决定（2026-10-14）：xiaozhi-esp32-server 的测试阶段部署在项目负责人本机；其调用的云端大模型访问方式（地址、账号、密钥）同样由项目负责人提供，不入库。
 - 已决定（2026-10-14）：服务端用 Docker 部署，根目录 `start-server.sh` 统一本地与云端流程，端口保持上游默认 8000/8002/8003；生产阶段沿用同一 compose 与脚本，只需替换 `.env`、`PUBLIC_HOST` 与镜像标签。
 - 已确认（2026-10-15）：火山方舟 LLM 已打通——`doubao-seed-2-0-lite-260428` 单轮对话与工具调用（`finish_reason=tool_calls`）均正常；上游配置默认的 `doubao-seed-2-0-lite-260215` 在本账号为 `Retiring` 状态会返回 404，已改钉 260428。
-- 待确认：豆包语音的 appid/access_token（本版本服务端用 `X-Api-App-Key` + `X-Api-Access-Key`，不支持新版单一 API Key），在此之前使用本地 FunASR + EdgeTTS。
+- 已确认（2026-10-15）：豆包 TTS 打通——新版单一 API Key（`X-Api-Key`）+ 资源 `seed-tts-2.0` + `*_uranus_bigtts` 音色实测返回音频；旧资源 `volc.service_type.10029`（湾湾小何）配该 Key 会 403，资源与音色必须配对。
+- 待确认：豆包 ASR 的新版鉴权（本版本服务端 ASR 仍用旧版 appid/access_token，暂以本地 FunASR 兜底）；如需新版 Key 走 ASR，需要按同一思路补丁化。
 - 已决定：按任务对象隔离资料与人格配置：`datasets/<ObjectName>/` 保存对象资料，`config/<ObjectName>/` 保存对象运行配置；Lisa Beck 已迁入各自子目录。项目级实施计划与构建默认项留在 `config/` 根层。
 - 待确认：整板／模组具体型号及 Flash 容量、屏幕与音频器件和引脚。
 - 待确认：自建 xiaozhi-esp32-server 的部署地址、网络可达性、TLS/证书要求和测试账号；服务端部署完成前，设备侧语音链路无法实测。
@@ -82,5 +83,6 @@ ESP32-S3 / xiaozhi-esp32
 | 2026-10-14 | 版本决策与测试部署 | 确定保留 ESP-IDF v5.5.5，把 xiaozhi-esp32 改为固定 release `v2.3.0`（提交 `1b48ebd7863695bf80d384c6c09af6299a6d7d0e`，声明 `idf: >=5.5.2`）；构建入口改为按 Kconfig 板型直接调用 `idf.py`（该版本尚无 `scripts/build.py`）。测试阶段 xiaozhi-esp32-server 部署在项目负责人本机，云端 LLM 访问方式由项目负责人提供。 | 本机无 ESP-IDF 工具链（`dependencies/.espressif` 为空、无 cmake/ninja），基线尚未在新的固定版本下交叉编译；目标 board 未定；服务端与本机 LLM 访问细节尚未记录。 |
 | 2026-10-14 | 服务端 Docker 部署 | 新增 [docker-compose.yml](../deploy/server/docker-compose.yml)（上游 `docker-compose_all.yml` 参数化：端口沿用 8000/8003/8002，智控台容器放入 `console` profile）、[.env.example](../deploy/server/.env.example)、[config/server/](../config/server/) 两个配置模板与根目录 [`start-server.sh`](../start-server.sh)（`up/config/status/logs/pull/restart/down`）；轻量模式生成的 `data/.config.yaml` 已验证可包含火山方舟 `DoubaoLLM`（`base_url` + `doubao-seed-2-0-lite-260215`）与 Lisa Beck 人格提示词，compose 两种模式均通过 `docker compose config`，未提交任何密钥。 | 火山方舟密钥可鉴权、`/models` 可列出该模型，但 `chat/completions` 对所有模型返回 404 `InvalidEndpointOrModel.NotFound`，需开通或改 `ep-` 接入点；豆包语音缺 appid/access_token；本机 Docker 引擎未启动，容器尚未实跑；`data/.config.yaml` 的 YAML 结构仅做人工核对。 |
 | 2026-10-15 | LLM 打通与模型 id 修正 | 实测火山方舟：`doubao-seed-2-0-lite-260428` 对话正常并返回 `tool_calls`（`get_datetime`）；确认 `GET /api/v3/models` 的 `status` 字段（Shutdown 83 / Retiring 17 / 可用 35）决定可否调用，上游默认的 260215 属 Retiring 故 404；`.env`（本地）与 [.env.example](../deploy/server/.env.example) 已改用 260428，`./start-server.sh config` 重建 `data/.config.yaml` 成功。 | 豆包语音 appid/access_token 仍未提供，暂用 FunASR + EdgeTTS；本机 Docker 引擎未启动，容器与设备链路尚未实跑。 |
+| 2026-10-15 | 豆包 TTS 打通（补丁化） | 依据官方双向流式 TTS 文档，新增 [`patches/xiaozhi-esp32-server/0001-huoshan-tts-api-key-auth.patch`](../dependencies/patches/xiaozhi-esp32-server/0001-huoshan-tts-api-key-auth.patch)，让 provider 在配置 `api_key` 时改发 `X-Api-Key` + `X-Api-Resource-Id`；`start-server.sh` 把补丁物化到 `build/server-overrides/`，compose 只读挂载到容器内，子模块与上游镜像都不改动。实测（复用服务端自身协议实现 + 新版鉴权）：`seed-tts-2.0` + `zh_female_gaolengyujie_uranus_bigtts` 返回 190,984 字节 PCM；资源 `volc.service_type.10029` 用该 Key 连接被拒（HTTP 403）。 | 音色需换成 `*_uranus_bigtts` 系列（Lisa 目标声线需在控制台挑选）；ASR 仍为本地 FunASR；Docker 引擎未启动，容器链路尚未实跑。 |
 
 实施时在此表追加记录，并同步更新上方阶段状态。已有主机侧交叉编译与测试结果；没有烧录或运行设备测试。

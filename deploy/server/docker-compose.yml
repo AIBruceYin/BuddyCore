@@ -35,6 +35,10 @@ services:
     volumes:
       - ./data:/opt/xiaozhi-esp32-server/data
       - ./models/SenseVoiceSmall/model.pt:/opt/xiaozhi-esp32-server/models/SenseVoiceSmall/model.pt
+      # BuddyCore 补丁：让豆包 TTS 支持新版单一 API Key（X-Api-Key）鉴权。
+      # 该文件由 ./start-server.sh 从 dependencies/patches/ 生成到 build/server-overrides/，
+      # 上游镜像本身保持不动；没有这个文件时 Docker 会把它当目录，故请用脚本启动。
+      - ../../build/server-overrides/core/providers/tts/huoshan_double_stream.py:/opt/xiaozhi-esp32-server/core/providers/tts/huoshan_double_stream.py:ro
 
   xiaozhi-esp32-server-web:
     # 智控台（manager-api + manager-web + OTA 网关），仅在设置 MANAGER_SECRET 时启动

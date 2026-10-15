@@ -1,0 +1,41 @@
+diff --git a/main/xiaozhi-server/core/providers/tts/huoshan_double_stream.py b/main/xiaozhi-server/core/providers/tts/huoshan_double_stream.py
+index e1211109..8aaa32b5 100644
+--- a/main/xiaozhi-server/core/providers/tts/huoshan_double_stream.py
++++ b/main/xiaozhi-server/core/providers/tts/huoshan_double_stream.py
+@@ -146,6 +146,8 @@ class TTSProvider(TTSProviderBase):
+         self._monitor_task = None  # 监听任务引用
+         self.appId = config.get("appid")
+         self.access_token = config.get("access_token")
++        # 新版豆包语音只发单一 API Key（X-Api-Key），不再提供 appid/access_token
++        self.api_key = config.get("api_key")
+         self.cluster = config.get("cluster")
+         self.resource_id = config.get("resource_id")
+         self.resource_type = True if self.resource_id == "seed-tts-2.0" else False
+@@ -233,12 +235,21 @@ class TTSProvider(TTSProviderBase):
+             # 建立新连接前取消旧监听任务
+             await self._cancel_monitor_task()
+ 
+-            ws_header = {
+-                "X-Api-App-Key": self.appId,
+-                "X-Api-Access-Key": self.access_token,
+-                "X-Api-Resource-Id": self.resource_id,
+-                "X-Api-Connect-Id": uuid.uuid4(),
+-            }
++            if self.api_key:
++                # 新版豆包语音鉴权：单一 API Key + 资源 ID（如 seed-tts-2.0）
++                ws_header = {
++                    "X-Api-Key": self.api_key,
++                    "X-Api-Resource-Id": self.resource_id,
++                    "X-Api-Connect-Id": uuid.uuid4(),
++                }
++            else:
++                # 旧版鉴权：appid + access_token
++                ws_header = {
++                    "X-Api-App-Key": self.appId,
++                    "X-Api-Access-Key": self.access_token,
++                    "X-Api-Resource-Id": self.resource_id,
++                    "X-Api-Connect-Id": uuid.uuid4(),
++                }
+             self.ws = await websockets.connect(
+                 self.ws_url, additional_headers=ws_header, max_size=1000000000
+             )
