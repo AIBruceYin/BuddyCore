@@ -1,8 +1,8 @@
 diff --git a/main/xiaozhi-server/core/providers/tts/huoshan_double_stream.py b/main/xiaozhi-server/core/providers/tts/huoshan_double_stream.py
-index e1211109..8aaa32b5 100644
+index e1211109..006146de 100644
 --- a/main/xiaozhi-server/core/providers/tts/huoshan_double_stream.py
 +++ b/main/xiaozhi-server/core/providers/tts/huoshan_double_stream.py
-@@ -146,6 +146,8 @@ class TTSProvider(TTSProviderBase):
+@@ -146,9 +146,13 @@ class TTSProvider(TTSProviderBase):
          self._monitor_task = None  # 监听任务引用
          self.appId = config.get("appid")
          self.access_token = config.get("access_token")
@@ -10,8 +10,14 @@ index e1211109..8aaa32b5 100644
 +        self.api_key = config.get("api_key")
          self.cluster = config.get("cluster")
          self.resource_id = config.get("resource_id")
-         self.resource_type = True if self.resource_id == "seed-tts-2.0" else False
-@@ -233,12 +235,21 @@ class TTSProvider(TTSProviderBase):
+-        self.resource_type = True if self.resource_id == "seed-tts-2.0" else False
++        # seed-tts-2.0（预置音色）与 seed-icl-2.0（复刻音色）同属 2.0 大模型，
++        # 都按 2.0 的文本/字幕处理路径走，否则首句标记依赖 SentenceStart 事件
++        self.resource_type = self.resource_id in ("seed-tts-2.0", "seed-icl-2.0")
+         self.report_on_last = self.resource_type
+         self.activate_session = False
+         if config.get("private_voice"):
+@@ -233,12 +237,21 @@ class TTSProvider(TTSProviderBase):
              # 建立新连接前取消旧监听任务
              await self._cancel_monitor_task()
  
@@ -22,7 +28,7 @@ index e1211109..8aaa32b5 100644
 -                "X-Api-Connect-Id": uuid.uuid4(),
 -            }
 +            if self.api_key:
-+                # 新版豆包语音鉴权：单一 API Key + 资源 ID（如 seed-tts-2.0）
++                # 新版豆包语音鉴权：单一 API Key + 资源 ID（如 seed-tts-2.0 / seed-icl-2.0）
 +                ws_header = {
 +                    "X-Api-Key": self.api_key,
 +                    "X-Api-Resource-Id": self.resource_id,
