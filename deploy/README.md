@@ -35,6 +35,12 @@ Custom cloned voices: the official TTS doc lists a second resource id for them �
 
 Cloud server: copy the repository, create `deploy/server/.env`, set `PUBLIC_HOST` to the public IP or domain, open 8000/8002/8003 in the security group, and run `./start-server.sh up`. State stays in `deploy/server/{data,mysql,uploadfile}`; pin the image tags instead of `*_latest` before production use.
 
+## Wake-Word Reply
+
+When the recognised wake-word text matches `wakeup_words` in the server config (the local template lists `你好小智`, `你好Lisa`, `你好丽莎`, `你好丽萨`), the server answers with a cached clip: `config/assets/wakeup_words/<md5(speaker)>.wav`, registered in `data/.wakeup_words.yaml`. The compose file mounts `deploy/server/data/wakeup_words/` over that directory so the clip survives container restarts.
+
+Without a pre-generated clip the first wake plays the upstream factory-voice file (`config/assets/wakeup_words_short.wav`, "我在这里哦！") while the server generates a replacement in the configured voice in the background. For the cloned voice `S_1Q9BPMqh2` a clip saying 我在呢，今天想聊点什么？ is pre-generated (md5 of the speaker id is `7d68eedf8767efc893c257b73b63d653`), so the very first wake already answers in the cloned voice.
+
 The LLM endpoint is configured inside xiaozhi-esp32-server rather than on the device. For host development, the current machine has an OpenAI-compatible vLLM service at `http://127.0.0.1:8002/v1/chat/completions` exposing model `qwen3.5-2b`. The text/persona request was tested. The server currently rejects `tool_choice: auto`; no tool-capable service contract is claimed yet.
 
 The existing vLLM deployment listens on all interfaces and has no API authentication. Keep tests on loopback. Before any device or LAN exposure, use an authenticated, access-controlled endpoint or a secured reverse proxy. Do not store secrets in this repository.

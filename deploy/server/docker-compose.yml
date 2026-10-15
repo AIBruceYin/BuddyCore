@@ -35,6 +35,8 @@ services:
     volumes:
       - ./data:/opt/xiaozhi-esp32-server/data
       - ./models/SenseVoiceSmall/model.pt:/opt/xiaozhi-esp32-server/models/SenseVoiceSmall/model.pt
+      # 唤醒词应答缓存（服务端会用当前 TTS 音色生成并缓存；预生成文件也放这里）
+      - ./data/wakeup_words:/opt/xiaozhi-esp32-server/config/assets/wakeup_words
       # BuddyCore 补丁：让豆包 TTS 支持新版单一 API Key（X-Api-Key）鉴权。
       # 该文件由 ./start-server.sh 从 dependencies/patches/ 生成到 build/server-overrides/，
       # 上游镜像本身保持不动；没有这个文件时 Docker 会把它当目录，故请用脚本启动。
