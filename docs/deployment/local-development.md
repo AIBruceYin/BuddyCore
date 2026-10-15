@@ -65,4 +65,33 @@ cp deploy/server/.env.example deploy/server/.env   # then fill in secrets
 
 `start-server.sh` renders the server config into the ignored `deploy/server/data/.config.yaml` and keeps upstream default ports (8000 WebSocket, 8003 server HTTP, 8002 console). Without `MANAGER_SECRET` it runs the single-service local mode; with it, the console containers start too. Details, modes and the current model-access status are in [deploy/README.md](../../deploy/README.md#server-deployment-docker).
 
+## Firmware on a Windows host
+
+`build-xiaozhi-baseline.sh` targets Linux/bash. On Windows use the companion script:
+
+```powershell
+$env:IDF_TOOLS_PATH = "$PWD\dependencies\.espressif"
+$env:IDF_GITHUB_ASSETS = "dl.espressif.com/github_assets"   # China: avoid github.com timeouts
+& .\dependencies\esp-idf\install.ps1 esp32s3
+
+$env:BUDDYCORE_XIAOZHI_BOARD_NAME   = "esp32-s3-touch-lcd-1.85c"
+$env:BUDDYCORE_XIAOZHI_BOARD_CONFIG = "CONFIG_BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_LCD_1_85C=y"
+$env:BUDDYCORE_XIAOZHI_EXTRA_CONFIG = "CONFIG_VERSION_1_0=y`nCONFIG_OTA_URL=`"http://<host>:8003/xiaozhi/ota/`""
+$env:BUDDYCORE_XIAOZHI_SHORT_ROOT   = "D:\zs"    # Windows command-line limit workaround
+$env:BUDDYCORE_XIAOZHI_BUILD_DIR    = "D:\zsz"
+powershell -NoProfile -ExecutionPolicy Bypass -File .\build-xiaozhi-baseline.ps1
+```
+
+Three Windows-specific traps, all hit during the first real build:
+
+1. Run `install.ps1` with no Python virtualenv active on `PATH`, otherwise ESP-IDF refuses to create its own venv. Add `IDF_GITHUB_ASSETS=dl.espressif.com/github_assets` first, otherwise crosstool-NG downloads from github.com time out.
+2. The final compile command with 74 managed components exceeds Windows' 32 KiB command-line limit. Build from short paths (`BUDDYCORE_XIAOZHI_SHORT_ROOT`, `BUDDYCORE_XIAOZHI_BUILD_DIR`); a directory junction is not enough because CMake resolves it back to the long path.
+3. Pass `-D` arguments to `idf.py` from a script file with quoted values: PowerShell mangles bare `-DSDKCONFIG=<drive>:\...` tokens.
+
+Flashing and monitoring (the device exposes the ESP32-S3 USB-Serial/JTAG, so no extra driver is needed):
+
+```powershell
+idf.py -C D:\zs -B D:\zsz -p COM3 -b 460800 flash
+```
+
 Build artifacts and generated sdkconfig live under ignored `build/`. Never put Wi-Fi credentials, API keys or private URLs in tracked defaults. Use environment variables or a local ignored config for secrets.
