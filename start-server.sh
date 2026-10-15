@@ -25,9 +25,11 @@ TEMPLATE_CONSOLE="$ROOT/config/server/xiaozhi-server.console.yaml.template"
 GENERATED_CONFIG="$SERVER_DIR/data/.config.yaml"
 MODEL_FILE="$SERVER_DIR/models/SenseVoiceSmall/model.pt"
 SERVER_SUB="$ROOT/dependencies/xiaozhi-esp32-server"
-SERVER_PATCH="$ROOT/dependencies/patches/xiaozhi-esp32-server/0001-huoshan-tts-api-key-auth.patch"
-SERVER_PATCH_TARGET="main/xiaozhi-server/core/providers/tts/huoshan_double_stream.py"
-OVERRIDE_FILE="$ROOT/build/server-overrides/core/providers/tts/huoshan_double_stream.py"
+# 上游补丁 → 子模块内文件 → 生成到 build/ 的覆盖文件（compose 以只读方式挂进容器）
+SERVER_PATCHES=(
+  "dependencies/patches/xiaozhi-esp32-server/0001-huoshan-tts-api-key-auth.patch|main/xiaozhi-server/core/providers/tts/huoshan_double_stream.py|build/server-overrides/core/providers/tts/huoshan_double_stream.py"
+  "dependencies/patches/xiaozhi-esp32-server/0002-huoshan-asr-api-key-auth.patch|main/xiaozhi-server/core/providers/asr/doubao_stream.py|build/server-overrides/core/providers/asr/doubao_stream.py"
+)
 
 usage() {
   cat <<'EOF'
@@ -119,27 +121,34 @@ warn_missing_cloud_voice() {
     [[ $has_new -eq 1 || $has_old -eq 1 ]] || \
       echo "警告：TTS=${module_value} 需要 SPEECH_API_KEY（新版）或 appid+access_token（旧版），当前都为空。" >&2
   else
-    [[ $has_old -eq 1 ]] || \
-      echo "警告：ASR=${module_value} 目前仅支持旧版 appid+access_token（新版 API Key 的 ASR 鉴权尚未接入），当前为空，建议先用 FunASR。" >&2
+    [[ $has_new -eq 1 || $has_old -eq 1 ]] || \
+      echo "警告：ASR=${module_value} 需要 SPEECH_API_KEY（新版，配 volc.seedasr.sauc.duration）或 appid+access_token（旧版），当前都为空。" >&2
   fi
 }
 
 ensure_server_overrides() {
-  [[ -f "$SERVER_PATCH" ]] || die "缺少服务端补丁：$SERVER_PATCH"
-  if [[ -n "$(git -C "$SERVER_SUB" status --porcelain -- "$SERVER_PATCH_TARGET")" ]]; then
-    die "子模块里的 $SERVER_PATCH_TARGET 有未提交改动，请先处理，避免被脚本覆盖。"
-  fi
-  if ! git -C "$SERVER_SUB" apply --check "$SERVER_PATCH" >/dev/null 2>&1; then
-    if git -C "$SERVER_SUB" apply --reverse --check "$SERVER_PATCH" >/dev/null 2>&1; then
-      die "服务端补丁已存在于子模块中，请先恢复 dependencies/xiaozhi-esp32-server 的干净状态。"
+  local entry patch target out rest
+  for entry in "${SERVER_PATCHES[@]}"; do
+    patch="$ROOT/${entry%%|*}"
+    rest="${entry#*|}"
+    target="${rest%%|*}"
+    out="$ROOT/${rest#*|}"
+    [[ -f "$patch" ]] || die "缺少服务端补丁：$patch"
+    if [[ -n "$(git -C "$SERVER_SUB" status --porcelain -- "$target")" ]]; then
+      die "子模块里的 $target 有未提交改动，请先处理，避免被脚本覆盖。"
     fi
-    die "服务端补丁无法应用到当前子模块版本（可能升级过 xiaozhi-esp32-server）：$SERVER_PATCH"
-  fi
-  mkdir -p "$(dirname "$OVERRIDE_FILE")"
-  git -C "$SERVER_SUB" apply "$SERVER_PATCH" || die "应用服务端补丁失败。"
-  cp "$SERVER_SUB/$SERVER_PATCH_TARGET" "$OVERRIDE_FILE"
-  git -C "$SERVER_SUB" checkout -- "$SERVER_PATCH_TARGET"
-  echo "已生成服务端补丁覆盖文件：${OVERRIDE_FILE#"$ROOT"/}"
+    if ! git -C "$SERVER_SUB" apply --check "$patch" >/dev/null 2>&1; then
+      if git -C "$SERVER_SUB" apply --reverse --check "$patch" >/dev/null 2>&1; then
+        die "服务端补丁已存在于子模块中，请先恢复 dependencies/xiaozhi-esp32-server 的干净状态：$patch"
+      fi
+      die "服务端补丁无法应用到当前子模块版本（可能升级过 xiaozhi-esp32-server）：$patch"
+    fi
+    mkdir -p "$(dirname "$out")"
+    git -C "$SERVER_SUB" apply "$patch" || die "应用服务端补丁失败：$patch"
+    cp "$SERVER_SUB/$target" "$out"
+    git -C "$SERVER_SUB" checkout -- "$target"
+    echo "已生成覆盖文件：${out#"$ROOT"/}"
+  done
 }
 
 generate_config() {
@@ -159,8 +168,11 @@ generate_config() {
       printf '\nTTS:\n'
       printf '  HuoshanDoubleStreamTTS:\n    type: huoshan_double_stream\n    ws_url: wss://openspeech.bytedance.com/api/v3/tts/bidirection\n    api_key: %s\n    resource_id: %s\n    speaker: %s\n    enable_ws_reuse: True\n    output_dir: tmp/\n' \
         "$SPEECH_API_KEY" "${VOLC_TTS_RESOURCE_ID:-seed-tts-2.0}" "${VOLC_TTS_VOICE:-zh_female_gaolengyujie_uranus_bigtts}"
+      printf '\nASR:\n'
+      printf '  DoubaoStreamASRV2:\n    type: doubao_stream\n    api_key: %s\n    resource_id: %s\n    output_dir: tmp/\n' \
+        "$SPEECH_API_KEY" "${VOLC_ASR_RESOURCE_ID:-volc.seedasr.sauc.duration}"
     } >> "$GENERATED_CONFIG"
-    echo "已写入豆包 TTS（新版 API Key 鉴权，资源 ${VOLC_TTS_RESOURCE_ID:-seed-tts-2.0}，音色 ${VOLC_TTS_VOICE:-zh_female_gaolengyujie_uranus_bigtts}）"
+    echo "已写入豆包 TTS/ASR（新版 API Key 鉴权）：TTS 资源 ${VOLC_TTS_RESOURCE_ID:-seed-tts-2.0} / 音色 ${VOLC_TTS_VOICE:-zh_female_gaolengyujie_uranus_bigtts}；ASR 资源 ${VOLC_ASR_RESOURCE_ID:-volc.seedasr.sauc.duration}"
   elif [[ -n "${VOLC_APPID:-}" && -n "${VOLC_ACCESS_TOKEN:-}" ]]; then
     {
       printf '\nTTS:\n'

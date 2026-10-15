@@ -1,0 +1,52 @@
+diff --git a/main/xiaozhi-server/core/providers/asr/doubao_stream.py b/main/xiaozhi-server/core/providers/asr/doubao_stream.py
+index 130729ba..7c09625a 100644
+--- a/main/xiaozhi-server/core/providers/asr/doubao_stream.py
++++ b/main/xiaozhi-server/core/providers/asr/doubao_stream.py
+@@ -29,6 +29,8 @@ class ASRProvider(ASRProviderBase):
+         # 配置参数
+         self.appid = str(config.get("appid"))
+         self.access_token = config.get("access_token")
++        # 新版豆包语音只发单一 API Key（X-Api-Key），不再需要 appid/access_token
++        self.api_key = config.get("api_key")
+         # 资源ID，用于区分不同的ASR模型（默认1.0模型小时版，v2版本使用seed-asr）
+         self.resource_id = config.get("resource_id", "volc.bigasr.sauc.duration")
+ 
+@@ -283,10 +285,6 @@ class ASRProvider(ASRProviderBase):
+ 
+     def construct_request(self, reqid):
+         req = {
+-            "app": {
+-                "appid": self.appid,
+-                "token": self.access_token,
+-            },
+             "user": {"uid": self.uid},
+             "request": {
+                 "reqid": reqid,
+@@ -310,6 +308,13 @@ class ASRProvider(ASRProviderBase):
+             },
+         }
+ 
++        # 旧版鉴权要在请求体里携带 appid/token；新版 API Key 走请求头，不带 app 字段
++        if not self.api_key:
++            req["app"] = {
++                "appid": self.appid,
++                "token": self.access_token,
++            }
++
+         # language参数仅在多语种模式下添加
+         if self.enable_multilingual and self.language:
+             req["audio"]["language"] = self.language
+@@ -320,6 +325,13 @@ class ASRProvider(ASRProviderBase):
+         return req
+ 
+     def token_auth(self):
++        if self.api_key:
++            # 新版鉴权：单一 API Key + 资源 ID + 请求 ID
++            return {
++                "X-Api-Key": self.api_key,
++                "X-Api-Resource-Id": self.resource_id,
++                "X-Api-Request-Id": str(uuid.uuid4()),
++            }
+         return {
+             "X-Api-App-Key": self.appid,
+             "X-Api-Access-Key": self.access_token,
