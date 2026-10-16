@@ -1,0 +1,33 @@
+diff --git a/main/xiaozhi-server/core/api/ota_handler.py b/main/xiaozhi-server/core/api/ota_handler.py
+index 1e3b3bd0..0ca3abc3 100644
+--- a/main/xiaozhi-server/core/api/ota_handler.py
++++ b/main/xiaozhi-server/core/api/ota_handler.py
+@@ -173,6 +173,28 @@ class OTAHandler(BaseHandler):
+             except Exception:
+                 data_json = {}
+ 
++            # BuddyCore：SN 白名单校验——只有白名单内的设备才下发服务端配置
++            sn = ""
++            if isinstance(data_json, dict):
++                sn = str(data_json.get("sn", "")).strip()
++            if not sn:
++                sn = (request.headers.get("sn") or "").strip()
++            try:
++                from core.utils.sn_whitelist import check_sn_allowed
++
++                allowed, reason = check_sn_allowed(self.config, sn)
++            except Exception as e:  # 白名单模块异常不应阻断 OTA
++                allowed, reason = True, f"whitelist check error: {e}"
++            if not allowed:
++                self.logger.bind(tag=TAG).warning(
++                    f"OTA 拒绝 device-id={device_id} sn={sn or '(空)'}：{reason}"
++                )
++                return web.Response(
++                    text=json.dumps({"success": False, "message": reason}),
++                    status=403,
++                    content_type="application/json",
++                )
++
+             server_config = self.config["server"]
+             # Distinguish ports:
+             # - websocket_port is used to construct websocket URL (server["port"])

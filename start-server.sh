@@ -31,6 +31,8 @@ SERVER_PATCHES=(
   "dependencies/patches/xiaozhi-esp32-server/0001-huoshan-tts-api-key-auth.patch|main/xiaozhi-server/core/providers/tts/huoshan_double_stream.py|build/server-overrides/core/providers/tts/huoshan_double_stream.py"
   "dependencies/patches/xiaozhi-esp32-server/0002-huoshan-asr-api-key-auth.patch|main/xiaozhi-server/core/providers/asr/doubao_stream.py|build/server-overrides/core/providers/asr/doubao_stream.py"
   "dependencies/patches/xiaozhi-esp32-server/0003-buddycore-wakeup-reply-text.patch|main/xiaozhi-server/core/handle/helloHandle.py|build/server-overrides/core/handle/helloHandle.py"
+  "dependencies/patches/xiaozhi-esp32-server/0004-buddycore-sn-whitelist-ws-gate.patch|main/xiaozhi-server/core/connection.py|build/server-overrides/core/connection.py"
+  "dependencies/patches/xiaozhi-esp32-server/0005-buddycore-sn-whitelist-ota-gate.patch|main/xiaozhi-server/core/api/ota_handler.py|build/server-overrides/core/api/ota_handler.py"
 )
 
 usage() {
@@ -123,6 +125,15 @@ render_template() {
 
 ensure_dirs() {
   mkdir -p "$SERVER_DIR/data" "$SERVER_DIR/uploadfile" "$SERVER_DIR/mysql/data" "$SERVER_DIR/models/SenseVoiceSmall"
+  # SN 白名单文件（compose 会把它挂进容器；不存在时 Docker 会错误地建成目录）
+  if [[ ! -f "$SERVER_DIR/data/sn_whitelist.txt" ]]; then
+    cat > "$SERVER_DIR/data/sn_whitelist.txt" <<'EOF'
+# BuddyCore 设备 SN 白名单：一行一个 SN（16 位数字），"#" 开头为注释
+# 格式：32 + 分类(2) + 日期(8, YYYYMMDD) + 随机(4)，例如 3201202609160001
+# 改完立即生效（服务端按文件 mtime 热加载），不需要重启服务
+
+EOF
+  fi
 }
 
 ensure_sensevoice_model() {

@@ -37,3 +37,9 @@ wakeup_words:
   - "你好Lisa"
   - "你好丽莎"
   - "你好丽萨"
+
+# 设备 SN 白名单：只有白名单内的设备才允许接入（WebSocket 与 OTA 两处拦截）。
+# 依赖固件上报 SN（见 tools/gen_sn.py 与依赖说明）；固件未上报前保持 false。
+sn_whitelist:
+  enabled: false
+  file: data/sn_whitelist.txt
