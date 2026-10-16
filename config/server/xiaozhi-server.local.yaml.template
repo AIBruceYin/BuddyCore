@@ -34,7 +34,6 @@ LLM:
 # 唤醒词应答：设备上报的唤醒词文本（去掉标点后）要命中这个列表，
 # 服务端才会播放"唤醒词回复"（用当前 TTS 音色，见 deploy/server/data/.wakeup_words.yaml）
 wakeup_words:
-  - "你好小智"
   - "你好Lisa"
   - "你好丽莎"
   - "你好丽萨"

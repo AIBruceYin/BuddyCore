@@ -30,6 +30,7 @@ SERVER_SUB="$ROOT/dependencies/xiaozhi-esp32-server"
 SERVER_PATCHES=(
   "dependencies/patches/xiaozhi-esp32-server/0001-huoshan-tts-api-key-auth.patch|main/xiaozhi-server/core/providers/tts/huoshan_double_stream.py|build/server-overrides/core/providers/tts/huoshan_double_stream.py"
   "dependencies/patches/xiaozhi-esp32-server/0002-huoshan-asr-api-key-auth.patch|main/xiaozhi-server/core/providers/asr/doubao_stream.py|build/server-overrides/core/providers/asr/doubao_stream.py"
+  "dependencies/patches/xiaozhi-esp32-server/0003-buddycore-wakeup-reply-text.patch|main/xiaozhi-server/core/handle/helloHandle.py|build/server-overrides/core/handle/helloHandle.py"
 )
 
 usage() {

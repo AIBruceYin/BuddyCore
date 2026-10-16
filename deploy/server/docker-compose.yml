@@ -42,6 +42,8 @@ services:
       # 上游镜像本身保持不动；没有这个文件时 Docker 会把它当目录，故请用脚本启动。
       - ../../build/server-overrides/core/providers/tts/huoshan_double_stream.py:/opt/xiaozhi-esp32-server/core/providers/tts/huoshan_double_stream.py:ro
       - ../../build/server-overrides/core/providers/asr/doubao_stream.py:/opt/xiaozhi-esp32-server/core/providers/asr/doubao_stream.py:ro
+      # BuddyCore 补丁：唤醒词应答话术固定为「你好，我在呢！」（锁掉上游的随机刷新）
+      - ../../build/server-overrides/core/handle/helloHandle.py:/opt/xiaozhi-esp32-server/core/handle/helloHandle.py:ro
 
   xiaozhi-esp32-server-web:
     # 智控台（manager-api + manager-web + OTA 网关），仅在设置 MANAGER_SECRET 时启动
