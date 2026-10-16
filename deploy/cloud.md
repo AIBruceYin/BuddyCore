@@ -31,6 +31,17 @@ cp deploy/server/.env.example deploy/server/.env
 ./start-server.sh check    # 自检：docker/配置渲染/容器状态/OTA 可达性
 ```
 
+更省事的做法（云主机只放部署产物，不需要 clone 整个仓库）：
+
+```bash
+./deploy/make-cloud-bundle.sh          # 本地执行，输出 build/cloud-bundle（含补丁覆盖文件与配置模板）
+scp -r build/cloud-bundle/. root@<host>:/opt/buddycore/
+ssh root@<host> 'cd /opt/buddycore && chmod +x start-server.sh && cp deploy/server/.env.example deploy/server/.env && vi deploy/server/.env'
+```
+
+打包脚本会一并带上 `config/<ObjectName>/`（如 `Lisa.Beck/SOUL.md`）与唤醒应答缓存。
+**如果漏了人设文件**，`start-server.sh` 找不到它会跳过注入，云端就会退回上游默认人设。
+
 ## 验证
 
 ```bash
