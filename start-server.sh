@@ -164,6 +164,12 @@ ensure_server_overrides() {
     rest="${entry#*|}"
     target="${rest%%|*}"
     out="$ROOT/${rest#*|}"
+    # 云主机等只带部署产物、没有 dependencies/ 子模块源码的场景：
+    # 覆盖文件已生成过就直接复用，不必再物化补丁。
+    if [[ ! -e "$SERVER_SUB/.git" && -f "$out" ]]; then
+      echo "跳过补丁物化（主机上没有子模块源码），使用已有覆盖文件：${out#"$ROOT"/}"
+      continue
+    fi
     [[ -f "$patch" ]] || die "缺少服务端补丁：$patch"
     if [[ -n "$(git -C "$SERVER_SUB" status --porcelain -- "$target")" ]]; then
       die "子模块里的 $target 有未提交改动，请先处理，避免被脚本覆盖。"
