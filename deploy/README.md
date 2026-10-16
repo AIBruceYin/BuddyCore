@@ -10,6 +10,8 @@ For the current test phase the service runs on the project owner's local machine
 
 ## Server Deployment (Docker)
 
+Cloud hosts (public domain, HTTPS/WSS, only 80/443 exposed): see [Cloud Deployment](cloud.md) and set `BUDDYCORE_STACK=cloud`; the rest of this section describes the local/LAN stack.
+
 `xiaozhi-esp32-server` runs from BuddyCore through `./start-server.sh`, which renders the server config and drives `deploy/server/docker-compose.yml` (adapted from the pinned upstream `main/xiaozhi-server/docker-compose_all.yml`). Ports keep the upstream defaults: 8000 device WebSocket, 8003 server HTTP (single-service OTA and vision analysis), 8002 console and OTA gateway.
 
 | Command | Effect |

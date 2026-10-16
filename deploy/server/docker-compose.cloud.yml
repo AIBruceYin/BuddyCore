@@ -1,0 +1,44 @@
+# BuddyCore 小智服务端 · 云端叠加编排（与 docker-compose.yml 合用）
+#
+# 适用场景：有域名、希望用 HTTPS/WSS 对公网提供服务。
+# 启用方式：deploy/server/.env 里设 BUDDYCORE_STACK=cloud（start-server.sh 会自动带上本文件）。
+#
+# 变化：
+#   1) 主服务与智控台不再直接对外暴露端口，统一由 Caddy 终止 TLS；
+#   2) Caddy 对外开 80/443，按路径分流：/xiaozhi/ota/* → OTA 上游，/xiaozhi/v1/* → WebSocket 上游；
+#   3) 证书由 Caddy 自动申请续期（需要域名 A 记录指向本机，且 80/443 可达）。
+#
+# 只需要公网 IP、没有域名时不要用本文件：直接用基础编排 + PUBLIC_HOST=<公网IP>，
+# 设备侧走 http://<IP>:8003 与 ws://<IP>:8000 即可。
+#
+# 注意：`!reset` 需要 Docker Compose >= 2.24（本文件用于清掉基础编排里的端口发布）。
+
+services:
+  xiaozhi-esp32-server:
+    ports: !reset []
+
+  xiaozhi-esp32-server-web:
+    ports: !reset []
+
+  caddy:
+    image: ${CADDY_IMAGE:-caddy:2.8}
+    container_name: buddycore-caddy
+    restart: always
+    networks:
+      - default
+    depends_on:
+      - xiaozhi-esp32-server
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      - TZ=${TZ:-Asia/Shanghai}
+      - DOMAIN=${PUBLIC_HOST:?cloud stack requires PUBLIC_HOST=<domain>}
+      - ACME_EMAIL=${ACME_EMAIL:-}
+      - OTA_UPSTREAM=${CADDY_OTA_UPSTREAM:-xiaozhi-esp32-server:8003}
+      - WS_UPSTREAM=${CADDY_WS_UPSTREAM:-xiaozhi-esp32-server:8000}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./caddy_data:/data
+      - ./caddy_config:/config

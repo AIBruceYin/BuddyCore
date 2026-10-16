@@ -1,0 +1,38 @@
+# BuddyCore 小智服务端对外入口（HTTPS/WSS 终止）
+#
+# 由 docker-compose.cloud.yml 挂载到 Caddy 容器；域名来自环境变量 DOMAIN，
+# 上游来自 OTA_UPSTREAM / WS_UPSTREAM（默认指向同网络内的主服务容器）。
+#
+# 设备侧填：
+#   OTA:  https://<DOMAIN>/xiaozhi/ota/
+#   对话: wss://<DOMAIN>/xiaozhi/v1/
+
+{
+    # 填了 ACME_EMAIL 时，Let's Encrypt 的到期提醒会发到这里
+    email {$ACME_EMAIL}
+}
+
+{$DOMAIN} {
+    encode zstd gzip
+    log {
+        output stdout
+        format console
+    }
+
+    # 设备 OTA 与激活
+    @ota path /xiaozhi/ota/* /xiaozhi/ota
+    handle @ota {
+        reverse_proxy {$OTA_UPSTREAM}
+    }
+
+    # 设备对话（WebSocket）
+    @ws path /xiaozhi/v1/*
+    handle @ws {
+        reverse_proxy {$WS_UPSTREAM}
+    }
+
+    # 其余路径（视觉分析接口、健康检查等）走主服务的 HTTP 端口
+    handle {
+        reverse_proxy {$OTA_UPSTREAM}
+    }
+}

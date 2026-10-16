@@ -8,6 +8,7 @@ set -euo pipefail
 #   ./start-server.sh up        启动服务（按 .env 决定是否包含智控台）
 #   ./start-server.sh config    仅重新生成 data/.config.yaml（改了 .env 后执行）
 #   ./start-server.sh overrides 仅重新生成上游补丁的覆盖文件（build/server-overrides/）
+#   ./start-server.sh check     部署自检（docker/.env/配置渲染/容器状态/OTA 可达性）
 #   ./start-server.sh status    查看容器状态与访问地址
 #   ./start-server.sh logs      跟随主服务日志
 #   ./start-server.sh pull      拉取/更新镜像
@@ -38,6 +39,7 @@ usage() {
   up        启动服务（按 deploy/server/.env 决定是否包含智控台）
   config    仅重新生成 deploy/server/data/.config.yaml
   overrides 仅重新生成上游补丁的覆盖文件（build/server-overrides/）
+  check     部署自检：docker、.env、配置渲染、容器状态、OTA 可达性
   status    查看容器状态与访问地址
   logs      跟随主服务日志
   pull      拉取/更新镜像
@@ -61,14 +63,43 @@ PORT_WS="${PORT_WS:-8000}"
 PORT_HTTP="${PORT_HTTP:-8003}"
 PORT_CONSOLE="${PORT_CONSOLE:-8002}"
 MANAGER_API_URL="${MANAGER_API_URL:-http://xiaozhi-esp32-server-web:8002/xiaozhi}"
+STACK="${BUDDYCORE_STACK:-local}"
+
+# 设备侧实际使用的地址：cloud 栈走域名 + HTTPS/WSS，local 栈走 IP + 端口
+PUBLIC_SCHEME="${PUBLIC_SCHEME:-$([[ "$STACK" == "cloud" ]] && echo https || echo http)}"
+if [[ "$PUBLIC_SCHEME" == "https" ]]; then
+  PUBLIC_WS_URL="${PUBLIC_WS_URL:-wss://${PUBLIC_HOST}/xiaozhi/v1/}"
+  PUBLIC_VISION_URL="${PUBLIC_VISION_URL:-https://${PUBLIC_HOST}/mcp/vision/explain}"
+  PUBLIC_OTA_URL="${PUBLIC_OTA_URL:-https://${PUBLIC_HOST}/xiaozhi/ota/}"
+else
+  PUBLIC_WS_URL="${PUBLIC_WS_URL:-ws://${PUBLIC_HOST}:${PORT_WS}/xiaozhi/v1/}"
+  PUBLIC_VISION_URL="${PUBLIC_VISION_URL:-http://${PUBLIC_HOST}:${PORT_HTTP}/mcp/vision/explain}"
+  PUBLIC_OTA_URL="${PUBLIC_OTA_URL:-http://${PUBLIC_HOST}:${PORT_HTTP}/xiaozhi/ota/}"
+fi
+export PUBLIC_SCHEME PUBLIC_WS_URL PUBLIC_VISION_URL PUBLIC_OTA_URL
 
 PROFILE_ARGS=()
 if [[ -n "${MANAGER_SECRET:-}" ]]; then
   PROFILE_ARGS=(--profile console)
 fi
 
+COMPOSE_FILES=(--file "$COMPOSE_FILE")
+if [[ "$STACK" == "cloud" ]]; then
+  [[ -f "$SERVER_DIR/docker-compose.cloud.yml" ]] || die "缺少 deploy/server/docker-compose.cloud.yml"
+  COMPOSE_FILES+=(--file "$SERVER_DIR/docker-compose.cloud.yml")
+  # 智控台模式下 OTA 由 web 容器提供，Caddy 的 OTA 上游要指向它
+  if [[ -n "${MANAGER_SECRET:-}" ]]; then
+    export CADDY_OTA_UPSTREAM="${CADDY_OTA_UPSTREAM:-xiaozhi-esp32-server-web:8002}"
+  else
+    export CADDY_OTA_UPSTREAM="${CADDY_OTA_UPSTREAM:-xiaozhi-esp32-server:8003}"
+  fi
+  echo "部署形态：cloud（域名 ${PUBLIC_HOST}，走 ${PUBLIC_SCHEME}，Caddy 终止 TLS）"
+else
+  echo "部署形态：local（${PUBLIC_HOST}，端口 ${PORT_WS}/${PORT_HTTP}）"
+fi
+
 compose() {
-  docker compose --project-directory "$SERVER_DIR" --file "$COMPOSE_FILE" "$@"
+  docker compose --project-directory "$SERVER_DIR" "${COMPOSE_FILES[@]}" "$@"
 }
 
 require_docker() {
@@ -197,16 +228,64 @@ generate_config() {
   echo "配置模式：本地配置（未设置 MANAGER_SECRET，不使用智控台）"
 }
 
+run_check() {
+  echo "=== 1) 运行环境 ==="
+  command -v docker >/dev/null 2>&1 || die "未找到 docker"
+  echo "docker:  $(docker --version)"
+  docker compose version >/dev/null 2>&1 || die "缺少 docker compose V2"
+  echo "compose: $(docker compose version --short)"
+  docker info >/dev/null 2>&1 && echo "引擎:    可用" || die "docker 引擎不可用"
+
+  echo "=== 2) 配置 ==="
+  echo ".env:    存在（$(grep -c . "$ENV_FILE") 行）"
+  [[ -n "${ARK_API_KEY:-}" ]] && echo "ARK_API_KEY:      已设置" || echo "ARK_API_KEY:      未设置"
+  [[ -n "${SPEECH_API_KEY:-}" ]] && echo "SPEECH_API_KEY:   已设置" || echo "SPEECH_API_KEY:   未设置（语音会退回默认实现）"
+  [[ -n "${MANAGER_SECRET:-}" ]] && echo "智控台:  开启（profile console）" || echo "智控台:  关闭（轻量单服务）"
+  echo "部署形态: $STACK"
+  echo "设备 OTA: $PUBLIC_OTA_URL"
+  echo "设备 WS:  $PUBLIC_WS_URL"
+
+  echo "=== 3) 配置渲染 ==="
+  generate_config >/dev/null && echo "data/.config.yaml: 生成成功"
+
+  echo "=== 4) 容器状态 ==="
+  compose "${PROFILE_ARGS[@]+"${PROFILE_ARGS[@]}"}" ps
+
+  echo "=== 5) OTA 接口可达性（本机探测） ==="
+  local probe_url="$PUBLIC_OTA_URL"
+  # cloud 栈的域名在本机可能尚未解析，探测时改用容器发布端口
+  if [[ "$STACK" == "cloud" ]]; then probe_url="http://127.0.0.1:${PORT_HTTP}/xiaozhi/ota/"; fi
+  if command -v curl >/dev/null 2>&1 && curl -fsS --max-time 8 "$probe_url" >/dev/null 2>&1; then
+    echo "可访问：$probe_url"
+  else
+    echo "暂时不可访问：$probe_url（服务未启动、或端口未放行/未映射）"
+  fi
+
+  if [[ "$STACK" == "cloud" ]]; then
+    echo "=== 6) 云端额外检查 ==="
+    if getent hosts "$PUBLIC_HOST" >/dev/null 2>&1; then
+      echo "DNS: $PUBLIC_HOST 可解析"
+    else
+      echo "DNS: 本机无法解析 $PUBLIC_HOST —— 请确认 A 记录指向本机公网 IP"
+    fi
+    echo "安全组/防火墙：需放行 80 与 443（TLS 模式）"
+  fi
+}
+
 print_endpoints() {
   echo "----------------------------------------"
   if [[ -n "${MANAGER_SECRET:-}" ]]; then
-    echo "智控台 / OTA 网关：http://${PUBLIC_HOST}:${PORT_CONSOLE}/"
-    echo "设备 OTA 地址：   http://${PUBLIC_HOST}:${PORT_CONSOLE}/xiaozhi/ota/"
+    if [[ "$PUBLIC_SCHEME" == "https" ]]; then
+      echo "智控台 / OTA 网关：https://${PUBLIC_HOST}/"
+    else
+      echo "智控台 / OTA 网关：http://${PUBLIC_HOST}:${PORT_CONSOLE}/"
+    fi
+    echo "设备 OTA 地址：   ${PUBLIC_OTA_URL}"
     echo "首次使用：打开智控台注册管理员 → 参数管理 → server.secret → 填入 .env 的 MANAGER_SECRET 后重跑 ./start-server.sh config"
   else
-    echo "设备 OTA 地址（单服务）：http://${PUBLIC_HOST}:${PORT_HTTP}/xiaozhi/ota/"
+    echo "设备 OTA 地址（单服务）：${PUBLIC_OTA_URL}"
   fi
-  echo "设备 WebSocket：  ws://${PUBLIC_HOST}:${PORT_WS}/xiaozhi/v1/"
+  echo "设备 WebSocket：  ${PUBLIC_WS_URL}"
   echo "----------------------------------------"
 }
 
@@ -229,6 +308,10 @@ case "$cmd" in
   overrides)
     ensure_server_overrides
     echo "如容器已在运行，执行 ./start-server.sh restart 使新文件生效。"
+    ;;
+  check)
+    require_docker
+    run_check
     ;;
   status)
     require_docker

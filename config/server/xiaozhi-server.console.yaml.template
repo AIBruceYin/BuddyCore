@@ -9,7 +9,7 @@ server:
   ip: 0.0.0.0
   port: ${PORT_WS}
   http_port: ${PORT_HTTP}
-  vision_explain: http://${PUBLIC_HOST}:${PORT_HTTP}/mcp/vision/explain
+  vision_explain: ${PUBLIC_VISION_URL}
   timezone_offset: +8
   auth:
     enabled: false

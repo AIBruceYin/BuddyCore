@@ -10,8 +10,9 @@ server:
   ip: 0.0.0.0
   port: ${PORT_WS}
   http_port: ${PORT_HTTP}
-  websocket: ws://${PUBLIC_HOST}:${PORT_WS}/xiaozhi/v1/
-  vision_explain: http://${PUBLIC_HOST}:${PORT_HTTP}/mcp/vision/explain
+  # 由 start-server.sh 按部署形态生成：local 为 ws://IP:端口，cloud 为 wss://域名
+  websocket: ${PUBLIC_WS_URL}
+  vision_explain: ${PUBLIC_VISION_URL}
   timezone_offset: +8
   auth:
     enabled: false
