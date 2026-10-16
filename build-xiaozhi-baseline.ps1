@@ -23,6 +23,10 @@
 #   $env:BUDDYCORE_XIAOZHI_BUILD_DIR  = "D:\zsz"
 # A directory junction is NOT enough: CMake resolves it back to the long path.
 #
+# BuddyCore firmware changes live in dependencies/patches/xiaozhi-esp32/*.patch and
+# are applied to the tree being built (the submodule stays pristine); rebuilds skip
+# patches that are already applied.
+#
 # Usage from the repository root:
 #   $env:BUDDYCORE_XIAOZHI_BOARD_NAME   = "esp32-s3-touch-lcd-1.85c"
 #   $env:BUDDYCORE_XIAOZHI_BOARD_CONFIG = "CONFIG_BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_LCD_1_85C=y"
@@ -38,6 +42,7 @@ $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $IdfPath = Join-Path $Root 'dependencies\esp-idf'
 $IdfToolsPath = Join-Path $Root 'dependencies\.espressif'
 $Xiaozhi = Join-Path $Root 'dependencies\xiaozhi-esp32'
+$FirmwarePatchDir = Join-Path $Root 'dependencies\patches\xiaozhi-esp32'
 $ShortRoot = $env:BUDDYCORE_XIAOZHI_SHORT_ROOT
 $BoardName = if ($env:BUDDYCORE_XIAOZHI_BOARD_NAME) { $env:BUDDYCORE_XIAOZHI_BOARD_NAME } else { 'bread-compact-wifi' }
 $BoardConfig = if ($env:BUDDYCORE_XIAOZHI_BOARD_CONFIG) { $env:BUDDYCORE_XIAOZHI_BOARD_CONFIG } else { 'CONFIG_BOARD_TYPE_BREAD_COMPACT_WIFI=y' }
@@ -56,9 +61,45 @@ if (-not (Test-Path (Join-Path $Xiaozhi 'main\Kconfig.projbuild'))) {
 if ($ShortRoot) {
     if (-not (Test-Path (Join-Path $ShortRoot 'main\Kconfig.projbuild'))) {
         Write-Host "Copying source to short path $ShortRoot (one-off, Windows command-line limit workaround)"
-        robocopy $Xiaozhi $ShortRoot /E /XD .git /NFL /NDL /NJH /NJS /NP /R:1 /W:1 | Out-Null
+        # /XF .git: the submodule's .git is a file pointing at the real gitdir; copied
+        # as-is it is a broken reference, and it makes git apply think this is a repo
+        robocopy $Xiaozhi $ShortRoot /E /XD .git /XF .git /NFL /NDL /NJH /NJS /NP /R:1 /W:1 | Out-Null
     }
+    Remove-Item (Join-Path $ShortRoot '.git') -Force -ErrorAction SilentlyContinue
     $Xiaozhi = $ShortRoot
+}
+
+# BuddyCore firmware patches (dependencies/patches/xiaozhi-esp32) are applied to the tree
+# that actually gets built, so the submodule checkout stays pristine.
+function Invoke-GitApply {
+    param([string]$Tree, [string[]]$Arguments)
+    $saved = $ErrorActionPreference
+    # Windows PowerShell 5.1 turns native stderr into a terminating error while
+    # $ErrorActionPreference is Stop, which git apply does write on --check failures.
+    $ErrorActionPreference = 'Continue'
+    try {
+        & git -C $Tree apply @Arguments 2>&1 | Out-Null
+        $code = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $saved
+    }
+    return $code
+}
+
+if (Test-Path $FirmwarePatchDir) {
+    foreach ($patch in Get-ChildItem -Path $FirmwarePatchDir -Filter '*.patch' | Sort-Object -Property Name) {
+        $patchFile = $patch.FullName
+        if ((Invoke-GitApply $Xiaozhi @('--check', $patchFile)) -eq 0) {
+            if ((Invoke-GitApply $Xiaozhi @($patchFile)) -ne 0) {
+                throw "Applying firmware patch failed: $($patch.Name)"
+            }
+            Write-Host "applied firmware patch: $($patch.Name)"
+        } elseif ((Invoke-GitApply $Xiaozhi @('--check', '--reverse', $patchFile)) -eq 0) {
+            Write-Host "firmware patch already applied: $($patch.Name)"
+        } else {
+            throw "Firmware patch neither applies nor reverses in $Xiaozhi ($($patch.Name)). Refresh the tree (e.g. delete $ShortRoot) and retry."
+        }
+    }
 }
 
 $env:IDF_TOOLS_PATH = $IdfToolsPath

@@ -26,6 +26,10 @@ cp "$ROOT/deploy/server/docker-compose.yml" \
    "$OUT/deploy/server/"
 [[ -f "$ROOT/deploy/cloud.md" ]] && cp "$ROOT/deploy/cloud.md" "$OUT/deploy/"
 
+# 1b) 本地覆盖模块（compose 以只读方式挂进容器，必须跟着上云）
+mkdir -p "$OUT/deploy/server/overrides"
+cp -r "$ROOT/deploy/server/overrides/." "$OUT/deploy/server/overrides/"
+
 # 2) 补丁覆盖文件（需先在本地跑过 ./start-server.sh overrides）
 if [[ ! -d "$ROOT/build/server-overrides" ]]; then
   echo "缺少 build/server-overrides：请先运行 ./start-server.sh overrides" >&2
@@ -49,6 +53,8 @@ done
 
 # 4) 唤醒词应答缓存（可选：不带则首次唤醒用出厂音色，之后自动换成配置的音色）
 mkdir -p "$OUT/deploy/server/data/wakeup_words"
+[[ -f "$ROOT/deploy/server/data/activation_codes.txt" ]] && \
+  cp "$ROOT/deploy/server/data/activation_codes.txt" "$OUT/deploy/server/data/"
 [[ -f "$ROOT/deploy/server/data/.wakeup_words.yaml" ]] && \
   cp "$ROOT/deploy/server/data/.wakeup_words.yaml" "$OUT/deploy/server/data/"
 cp "$ROOT/deploy/server/data/wakeup_words/"*.wav "$OUT/deploy/server/data/wakeup_words/" 2>/dev/null || true

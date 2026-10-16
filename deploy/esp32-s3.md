@@ -31,6 +31,15 @@
 
 首版使用 xiaozhi-esp32 自带的 WebSocket 或 MQTT/UDP 语音实现，ASR、Agent/LLM 与 TTS 全部运行在自建的 xiaozhi-esp32-server；设备只负责唤醒、音频编解码、显示与播放。部署前确认服务器地址、网络可达性、TLS 证书与 LLM 配置。设备连接 RTX 4090 上的 LLM 时，必须使用设备可路由到的受控地址；不可把当前无鉴权的 `0.0.0.0:8002` 服务直接暴露到局域网或公网。
 
+### 2.1 激活码与设备准入
+
+服务端可以只放行登记过的设备，开关是 `deploy/server/.env` 的 `ACTIVATION_WHITELIST_ENABLED`；设备靠**激活码**通过门禁：
+
+- **激活码格式**：`32` + 分类(2) + 日期(8, YYYYMMDD) + 随机(4)，共 16 位纯数字（例如 `3201202610160001`）。用 `python3 tools/gen_activation_code.py --category 01 --count 5 --append deploy/server/data/activation_codes.txt` 生成并登记；白名单文件一行一个激活码，改完立即生效（服务端按文件 mtime 热加载，不必重启）。
+- **设备侧填写**：连上设备热点后打开配网页面（如 `http://192.168.4.1`），切到「Advanced」，在「激活码（Activation Code）」里填 16 位数字后保存；留空表示清除。设备把激活码存进 NVS（命名空间 `wifi`，键 `activation_code`），之后每次 OTA 与 WebSocket 握手都用 `Activation-Code` 头上报。
+- **门禁行为**：开关为 `false` 时放行所有设备；为 `true` 时，不在白名单或未上报激活码的设备在 OTA 拿到 HTTP 403、WebSocket 被服务端以 1008 关闭，设备因此拿不到服务器地址、也建立不了语音会话（串口会看到 `Failed to check version, status code: 403` 并按退避重试）。
+- **联调证据**（2026-10-17）：真实设备（`98:a3:16:d8:0d:e4`）上报 `3201202610160001` 时云端 OTA 返回 200、WebSocket 握手放行；把该激活码从白名单删掉后同一台设备 OTA 变成 403 并重试，重新加回后恢复正常。
+
 ### 3. 构建并审查产物
 
 ```sh

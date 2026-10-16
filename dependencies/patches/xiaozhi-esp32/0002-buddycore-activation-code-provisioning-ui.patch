@@ -1,0 +1,133 @@
+diff --git a/managed_components/78__esp-wifi-connect/assets/wifi_configuration.html b/managed_components/78__esp-wifi-connect/assets/wifi_configuration.html
+index 4755aec..37c0179 100644
+--- a/managed_components/78__esp-wifi-connect/assets/wifi_configuration.html
++++ b/managed_components/78__esp-wifi-connect/assets/wifi_configuration.html
+@@ -548,6 +548,16 @@
+             <div>
+                 <p class="error" id="advanced_error"></p>
+                 
++                <!-- 激活码（BuddyCore：服务端白名单凭据，由设备在 OTA/WebSocket 握手时上报） -->
++                <div id="activation_code_row" style="margin-bottom: 16px;">
++                    <label for="activation_code">激活码（Activation Code）：
++                        <span style="font-weight: normal; color: #666;">16 位数字；留空表示清除</span>
++                    </label>
++                    <input type="text" id="activation_code" name="activation_code"
++                           inputmode="numeric" maxlength="16" pattern="[0-9]{16}"
++                           placeholder="例如 3201202610160001">
++                </div>
++
+                 <!-- OTA URL (visibility controlled by show_ota_config from server) -->
+                 <div id="ota_url_row" style="display: none;">
+                     <label for="ota_url" data-lang="ota_url">Custom OTA URL:</label>
+@@ -1661,11 +1671,20 @@
+             advancedButton.disabled = true;
+             advancedError.textContent = '';
+ 
++            // 激活码是服务端放行设备的凭据：非空时必须是 16 位数字
++            const activationCode = document.getElementById('activation_code').value.trim();
++            if (activationCode && !/^[0-9]{16}$/.test(activationCode)) {
++                advancedError.textContent = '激活码应为 16 位数字（Activation code must be 16 digits）';
++                advancedButton.disabled = false;
++                return;
++            }
++
+             const config = {
+                 ota_url: document.getElementById('ota_url').value,
+                 max_tx_power: parseInt(document.getElementById('max_tx_power').value),
+                 remember_bssid: document.getElementById('remember_bssid').checked,
+-                sleep_mode: document.getElementById('sleep_mode').checked
++                sleep_mode: document.getElementById('sleep_mode').checked,
++                activation_code: activationCode
+             };
+ 
+             try {
+@@ -1749,6 +1768,9 @@
+                 if (data.sleep_mode !== undefined) {
+                     document.getElementById('sleep_mode').checked = data.sleep_mode;
+                 }
++                if (data.activation_code !== undefined) {
++                    document.getElementById('activation_code').value = data.activation_code;
++                }
+             } catch (error) {
+                 console.error('Error loading advanced config:', error);
+             }
+diff --git a/managed_components/78__esp-wifi-connect/include/wifi_configuration_ap.h b/managed_components/78__esp-wifi-connect/include/wifi_configuration_ap.h
+index 1ed2301..c73699a 100644
+--- a/managed_components/78__esp-wifi-connect/include/wifi_configuration_ap.h
++++ b/managed_components/78__esp-wifi-connect/include/wifi_configuration_ap.h
+@@ -70,6 +70,7 @@ private:
+ 
+     // 高级配置项
+     std::string ota_url_;
++    std::string activation_code_;
+     int8_t max_tx_power_;
+     bool remember_bssid_;
+     bool sleep_mode_;
+diff --git a/managed_components/78__esp-wifi-connect/wifi_configuration_ap.cc b/managed_components/78__esp-wifi-connect/wifi_configuration_ap.cc
+index 0747554..4ea1c24 100644
+--- a/managed_components/78__esp-wifi-connect/wifi_configuration_ap.cc
++++ b/managed_components/78__esp-wifi-connect/wifi_configuration_ap.cc
+@@ -216,6 +216,15 @@ void WifiConfigurationAp::StartAccessPoint()
+             sleep_mode_ = true; // 默认值
+         }
+ 
++        // 读取激活码（BuddyCore：服务端白名单凭据，由配网界面写入）
++        char activation_code[64] = {0};
++        size_t activation_code_size = sizeof(activation_code);
++        err = nvs_get_str(nvs, "activation_code", activation_code, &activation_code_size);
++        if (err == ESP_OK) {
++            activation_code_ = activation_code;
++            ESP_LOGI(TAG, "Activation code from NVS: %s", activation_code_.c_str());
++        }
++
+         nvs_close(nvs);
+     }
+ }
+@@ -532,6 +541,9 @@ void WifiConfigurationAp::StartWebServer()
+             cJSON_AddBoolToObject(json, "sleep_mode", this_->sleep_mode_);
+             cJSON_AddBoolToObject(json, "show_ota_config", this_->show_ota_config_);
+             cJSON_AddBoolToObject(json, "show_sleep_config", this_->show_sleep_config_);
++            if (!this_->activation_code_.empty()) {
++                cJSON_AddStringToObject(json, "activation_code", this_->activation_code_.c_str());
++            }
+ 
+             // 发送JSON响应
+             char *json_str = cJSON_PrintUnformatted(json);
+@@ -647,6 +659,29 @@ void WifiConfigurationAp::StartWebServer()
+                 }
+             }
+ 
++            // 保存激活码（BuddyCore：服务端白名单凭据；留空表示清除）
++            cJSON *activation_code = cJSON_GetObjectItem(json, "activation_code");
++            if (cJSON_IsString(activation_code) && activation_code->valuestring) {
++                std::string code = activation_code->valuestring;
++                size_t begin = code.find_first_not_of(" \t");
++                size_t end = code.find_last_not_of(" \t");
++                code = (begin == std::string::npos) ? "" : code.substr(begin, end - begin + 1);
++                if (!code.empty() && (code.length() != 16 ||
++                                      code.find_first_not_of("0123456789") != std::string::npos)) {
++                    cJSON_Delete(json);
++                    nvs_close(nvs);
++                    ESP_LOGW(TAG, "Invalid activation code: %s", code.c_str());
++                    httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST,
++                                        "Activation code must be 16 digits");
++                    return ESP_FAIL;
++                }
++                this_->activation_code_ = code;
++                err = nvs_set_str(nvs, "activation_code", code.c_str());
++                if (err != ESP_OK) {
++                    ESP_LOGE(TAG, "Failed to save activation code: %d", err);
++                }
++            }
++
+             // 提交更改
+             err = nvs_commit(nvs);
+             nvs_close(nvs);
+@@ -664,6 +699,7 @@ void WifiConfigurationAp::StartWebServer()
+ 
+             ESP_LOGI(TAG, "Saved settings: ota_url=%s, max_tx_power=%d, remember_bssid=%d, sleep_mode=%d",
+                 this_->ota_url_.c_str(), this_->max_tx_power_, this_->remember_bssid_, this_->sleep_mode_);
++            ESP_LOGI(TAG, "Saved activation code: %s", this_->activation_code_.c_str());
+             return ESP_OK;
+         },
+         .user_ctx = this

@@ -38,8 +38,9 @@ wakeup_words:
   - "你好丽莎"
   - "你好丽萨"
 
-# 设备 SN 白名单：只有白名单内的设备才允许接入（WebSocket 与 OTA 两处拦截）。
-# 依赖固件上报 SN（见 tools/gen_sn.py 与依赖说明）；固件未上报前保持 false。
-sn_whitelist:
-  enabled: false
-  file: data/sn_whitelist.txt
+# 设备激活码白名单：只有白名单内的设备才允许接入（WebSocket 与 OTA 两处拦截）。
+# 开关来自 deploy/server/.env 的 ACTIVATION_WHITELIST_ENABLED（false 时放行所有设备）。
+# 激活码由配网界面写入设备 NVS，设备用 Activation-Code 头上报；生成见 tools/gen_activation_code.py。
+activation_whitelist:
+  enabled: ${ACTIVATION_WHITELIST_ENABLED}
+  file: data/activation_codes.txt

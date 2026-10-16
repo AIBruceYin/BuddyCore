@@ -1,0 +1,43 @@
+diff --git a/main/ota.cc b/main/ota.cc
+index bcc0dc5..5a6a79b 100644
+--- a/main/ota.cc
++++ b/main/ota.cc
+@@ -68,6 +68,14 @@ std::unique_ptr<Http> Ota::SetupHttp() {
+     http->SetHeader("Accept-Language", Lang::CODE);
+     http->SetHeader("Content-Type", "application/json");
+ 
++    // BuddyCore：配网界面填写的激活码，服务端据此做白名单准入
++    Settings settings("wifi", false);
++    std::string activation_code = settings.GetString("activation_code");
++    if (!activation_code.empty()) {
++        http->SetHeader("Activation-Code", activation_code.c_str());
++        ESP_LOGI(TAG, "Setup HTTP, Activation-Code: %s", activation_code.c_str());
++    }
++
+     return http;
+ }
+ 
+diff --git a/main/protocols/websocket_protocol.cc b/main/protocols/websocket_protocol.cc
+index 4b74a5e..b9eb671 100644
+--- a/main/protocols/websocket_protocol.cc
++++ b/main/protocols/websocket_protocol.cc
+@@ -85,6 +85,9 @@ bool WebsocketProtocol::OpenAudioChannel() {
+     std::string url = settings.GetString("url");
+     std::string token = settings.GetString("token");
+     int version = settings.GetInt("version");
++    // BuddyCore：激活码在配网界面填写、存在 wifi 命名空间，服务端据此放行本设备
++    Settings wifi_settings("wifi", false);
++    std::string activation_code = wifi_settings.GetString("activation_code");
+     if (version != 0) {
+         version_ = version;
+     }
+@@ -108,6 +111,9 @@ bool WebsocketProtocol::OpenAudioChannel() {
+     websocket_->SetHeader("Protocol-Version", std::to_string(version_).c_str());
+     websocket_->SetHeader("Device-Id", SystemInfo::GetMacAddress().c_str());
+     websocket_->SetHeader("Client-Id", Board::GetInstance().GetUuid().c_str());
++    if (!activation_code.empty()) {
++        websocket_->SetHeader("Activation-Code", activation_code.c_str());
++    }
+ 
+     websocket_->OnData([this](const char* data, size_t len, bool binary) {
+         if (binary) {

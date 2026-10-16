@@ -1,0 +1,39 @@
+diff --git a/main/xiaozhi-server/core/connection.py b/main/xiaozhi-server/core/connection.py
+index 15ac1364..80eb02ce 100644
+--- a/main/xiaozhi-server/core/connection.py
++++ b/main/xiaozhi-server/core/connection.py
+@@ -220,6 +220,34 @@ class ConnectionHandler:
+ 
+             self.device_id = self.headers.get("device-id", None)
+ 
++            # BuddyCore：激活码白名单——只有白名单内的设备才允许接入
++            self.device_activation_code = ""
++            try:
++                from core.utils.activation_whitelist import (
++                    check_activation_code_allowed,
++                    code_from_sources,
++                )
++
++                self.device_activation_code = code_from_sources(headers=self.headers)
++                _allowed, _reason = check_activation_code_allowed(
++                    self.config, self.device_activation_code
++                )
++            except Exception as _e:  # 校验异常不阻断服务，但必须留痕
++                self.logger.bind(tag=TAG).error(f"激活码白名单校验异常（已放行）：{_e}")
++                _allowed, _reason = True, f"whitelist check error: {_e}"
++
++            if not _allowed:
++                self.logger.bind(tag=TAG).warning(
++                    f"拒绝接入 device-id={self.device_id} "
++                    f"激活码={self.device_activation_code or '(空)'}：{_reason}"
++                )
++                await ws.close(code=1008, reason="device not authorized")
++                return
++            self.logger.bind(tag=TAG).info(
++                f"激活码校验通过 激活码={self.device_activation_code or '(空)'}"
++                f"（{_reason}）"
++            )
++
+             # 认证通过,继续处理
+             self.websocket = ws
+ 
