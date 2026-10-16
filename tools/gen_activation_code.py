@@ -59,7 +59,9 @@ def main() -> int:
     if args.append:
         path = pathlib.Path(args.append)
         path.parent.mkdir(parents=True, exist_ok=True)
-        with path.open("a", encoding="utf-8") as f:
+        # newline="\n"：白名单既可能在 Windows 编辑也可能在服务器上用 sed/脚本改，
+        # 统一 LF 省得按行匹配时被 CR 咬到
+        with path.open("a", encoding="utf-8", newline="\n") as f:
             for code in codes:
                 f.write(code + "\n")
         print(f"已追加 {len(codes)} 条到 {path}", file=sys.stderr)
