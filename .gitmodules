@@ -7,3 +7,6 @@
 [submodule "dependencies/xiaozhi-esp32-server"]
 	path = dependencies/xiaozhi-esp32-server
 	url = https://github.com/xinnan-tech/xiaozhi-esp32-server.git
+[submodule "dependencies/ESPS3_AI_EYE_Vision"]
+	path = dependencies/ESPS3_AI_EYE_Vision
+	url = https://github.com/AIBruceYin/ESPS3_AI_EYE_Vision.git

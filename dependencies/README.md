@@ -7,8 +7,11 @@ Source dependencies are checked out inside this directory as Git submodules:
 | `xiaozhi-esp32/` | https://github.com/78/xiaozhi-esp32 | release `v2.3.0`, commit `1b48ebd7863695bf80d384c6c09af6299a6d7d0e` (pinned 2026-10-14) |
 | `xiaozhi-esp32-server/` | https://github.com/xinnan-tech/xiaozhi-esp32-server | commit `27399a2fb64b5910196f438a256ce0a9f868481f` (branch `main`, pinned 2026-10-14) |
 | `esp-idf/` | https://github.com/espressif/esp-idf | commit `b774170ff46c393eeb5e495ea37936038d3f4f4f` (ESP-IDF `v5.5.5`) |
+| `ESPS3_AI_EYE_Vision/` | https://github.com/AIBruceYin/ESPS3_AI_EYE_Vision | commit `995e05b0b4376c92141d31279165202a845f2e2b` (independently maintained, pinned 2026-10-27) |
 
 Branch `xiaozhiAI` builds on XiaoZhi instead of XiaoClaw: `xiaozhi-esp32` is the device firmware base and `xiaozhi-esp32-server` is the self-hosted ASR/LLM/TTS service. XiaoClaw is no longer part of this branch; `dependencies/patches/xiaoclaw/0001-fix-lamp-controller-conflict.patch` stays only as a historical reference and is applied by no script.
+
+`ESPS3_AI_EYE_Vision/` is the independently maintained DOIT AI Eye Vision firmware for the dual 240x240 GC9A01 ESP32-S3 board. It contains the required vendor-specific panel initialization and the stable localized eye refresh path. Its `sdkconfig.defaults.esp32s3` selects `CONFIG_BOARD_TYPE_DOIT_AI_EYE_VISION` for reproducible builds.
 
 The BuddyCore repository records each submodule commit. ESP-IDF's nested source submodules are initialized recursively. `xiaozhi-esp32` resolves its own components through the ESP-IDF Component Manager (`main/idf_component.yml`); generated `managed_components/`, `build/`, `releases/` and `sdkconfig*` content inside that checkout is ignored by the upstream repository. `xiaozhi-esp32-server` holds `main/xiaozhi-server` (Python), `main/manager-api` (Java), `main/manager-web` and `main/manager-mobile`; it is deployed separately and is not part of the ESP-IDF build.
 
